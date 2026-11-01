@@ -1,0 +1,94 @@
+{
+  "UltraStandaloneImagePiD": {
+    "display_name": "Ultra Image + PiD",
+    "description": "Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1, MOSS-Image 생성과 선택형 PiD 업스케일을 하나의 노드에서 실행합니다. Positive/Negative STRING 입력은 모두 선택사항입니다.",
+    "inputs": {
+      "positive_prompt": {
+        "name": "긍정 프롬프트",
+        "description": "선택적 STRING 입력입니다. 미연결/빈 문자열에서도 빈 프롬프트로 정상 생성됩니다."
+      },
+      "model_family": {
+        "name": "모델 계열"
+      },
+      "diffusion_model": {
+        "name": "확산 모델"
+      },
+      "text_encoder": {
+        "name": "텍스트 인코더"
+      },
+      "vae_name": {
+        "name": "VAE"
+      },
+      "width": {
+        "name": "가로"
+      },
+      "height": {
+        "name": "세로"
+      },
+      "batch_size": {
+        "name": "배치 크기",
+        "description": "PiD를 ON으로 사용하면 배치마다 4배 target을 생성하므로 VRAM 사용량이 크게 늘어납니다. PiD 사용 시에는 배치 1을 권장합니다."
+      },
+      "seed": {
+        "name": "시드"
+      },
+      "steps": {
+        "name": "스텝"
+      },
+      "cfg": {
+        "name": "CFG"
+      },
+      "sampler_name": {
+        "name": "샘플러"
+      },
+      "scheduler": {
+        "name": "스케줄러"
+      },
+      "denoise": {
+        "name": "디노이즈"
+      },
+      "zero_conditioning": {
+        "name": "제로 컨디셔닝",
+        "description": "ON: 연결된 부정 프롬프트를 무시하고 모델 계열별 기본 무조건 conditioning을 사용합니다. MOSS-Image와 Qwen Image 2.1은 모델 공식 방식대로 빈 Negative 텍스트를 인코딩합니다. OFF: 연결된 부정 프롬프트를 인코딩하며 미연결 또는 빈 입력은 빈 문자열로 인코딩합니다."
+      },
+      "negative_prompt": {
+        "name": "부정 프롬프트",
+        "description": "선택적 STRING 입력입니다. Zero Conditioning OFF에서만 적용됩니다. 미연결·공백 입력은 빈 문자열로 인코딩합니다."
+      },
+      "pid_upscale": {
+        "name": "PiD 업스케일",
+        "description": "PiD 업스케일을 켜거나 끕니다. OFF에서는 PiD 전용 모델과 Context Window 경로를 실행하지 않습니다."
+      },
+      "pid_model": {
+        "name": "PiD 모델"
+      },
+      "pid_sampler": {
+        "name": "PiD 샘플러"
+      },
+      "pid_scheduler": {
+        "name": "PiD 스케줄러"
+      },
+      "pid_steps": {
+        "name": "PiD 스텝"
+      },
+      "pid_degrade_sigma": {
+        "name": "PiD degrade sigma"
+      },
+      "pid_output_scale": {
+        "name": "PiD 최종 배율"
+      },
+      "sage_attention": {
+        "name": "SageAttention",
+        "description": "메인 이미지 생성 MODEL에만 KJ Patch Sage Attention KJ를 내부 적용합니다. OFF에서는 KJNodes나 SageAttention을 조회하거나 실행하지 않습니다. ON은 auto / allow_compile=False로 동작합니다."
+      }
+    },
+    "outputs": {
+      "Original Image": {
+        "name": "원본 이미지"
+      },
+      "PiD Image": {
+        "name": "PiD 이미지"
+      }
+    }
+  }
+}

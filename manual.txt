@@ -1,0 +1,468 @@
+﻿Ultra Image + PiD — 사용 설명서 / USER MANUAL
+버전 / Version: 1.0.0
+한국어 안내 (English guide follows below)
+============================================================
+
+1. 소개
+-------
+Ultra Image + PiD는 ComfyUI에서 여러 이미지 모델의 생성과 선택적
+PiD(PixelDiT) 업스케일을 한 노드에서 실행하는 독립 커스텀 노드입니다.
+지원 모델: Krea 2 / Z-Image / Anima / Qwen Image /
+           Qwen Image 2.1 (Turbo 포함) / MOSS-Image
+노드 검색/표시 이름: Ultra Image + PiD
+독립 노드 ID: UltraStandaloneImagePiD
+출력 단자: Original Image(원본) / PiD Image(업스케일 또는 원본)
+이 노드는 다른 Ultra Tools 노드의 설치를 요구하지 않습니다.
+
+2. 설치 방법
+------------
+① ZIP을 압축 해제합니다.
+② 아래와 같이 __init__.py가 노드 폴더 바로 아래 있도록 설치합니다.
+
+   ComfyUI/
+     custom_nodes/
+       comfyui-Ultra-Image-PiD/
+         __init__.py
+         ultra_image_pid.py
+         web/
+         locales/
+         manual.txt
+         예제/
+
+③ ComfyUI를 완전히 재시작하고, 브라우저는 필요하면 Ctrl+F5로 새로고침합니다.
+④ 노드 검색에서 "Ultra Image + PiD"를 찾아 추가합니다.
+⑤ 예제/Ultra_Image_PiD_Standalone.json을 열어 시작할 수도 있습니다.
+
+독립판은 옛 Ultra Tools의 UltraImagePiD 노드와 ID가 다릅니다.
+기존 워크플로우 자동 변환은 지원하지 않으니 새 워크플로우를 만드세요.
+
+3. 첫 이미지 생성: 필수 모델 선택
+--------------------------------
+① model_family: 이미지 생성 모델 계열을 먼저 선택합니다.
+② diffusion_model: 해당 계열의 이미지 확산 모델을 선택합니다.
+③ text_encoder: 해당 모델에 맞는 텍스트 인코더를 선택합니다.
+④ vae_name: 해당 모델에 맞는 일반 생성용 VAE를 선택합니다.
+⑤ width/height, steps, CFG, sampler_name, scheduler 등을 설정합니다.
+⑥ Positive Prompt 입력에 STRING 텍스트를 연결하거나 연결하지 않고 둡니다.
+⑦ Queue Prompt로 생성합니다.
+
+모델 파일 자체는 패키지에 포함되지 않습니다. 모델 계열, 모델, 인코더,
+VAE가 서로 호환되어야 합니다. 해상도는 최소 8의 배수여야 하며
+Qwen Image 2.1과 MOSS-Image는 16의 배수가 필요합니다.
+
+4. Positive / Negative 입력 및 Zero Conditioning
+-------------------------------------------------
+Positive Prompt와 Negative Prompt는 모두 선택형 STRING 입력 소켓입니다.
+  • Positive 미연결/빈 문자열/공백: 빈 긍정 프롬프트를 인코딩해 생성합니다.
+    특정한 고정 이미지나 임의의 기본 프롬프트를 넣지 않습니다.
+  • Zero Conditioning ON (기본값): Negative 연결선에 텍스트가 있더라도
+    무시하고 모델 계열에 맞는 무조건(unconditional) conditioning을 사용합니다.
+    Krea 2, Z-Image, Anima, Qwen Image → ConditioningZeroOut 사용.
+    Qwen Image 2.1, MOSS-Image → 공식 생성 흐름에 맞춰 빈 Negative 인코딩.
+  • Zero Conditioning OFF: Negative가 연결되어 내용이 있으면 인코딩합니다.
+    미연결/빈 문자열/공백이라면 빈 Negative 텍스트를 인코딩합니다.
+
+이 설정은 원본 이미지 생성에만 적용됩니다. PiD의 Negative와 CFG는
+노드 내부에서 별도로 처리됩니다. CFG 1에서는 모델/샘플러에 따라
+Negative Prompt가 출력에 거의 영향을 주지 않을 수 있습니다.
+
+5. PiD에 필요한 파일: 다운로드 및 설치
+---------------------------------------
+[공식 PiD 모델 목록]
+https://huggingface.co/Comfy-Org/PixelDiT/tree/main/diffusion_models
+
+[공식 PiD Gemma 텍스트 인코더 목록]
+https://huggingface.co/Comfy-Org/PixelDiT/tree/main/text_encoders
+
+PiD ON 전에 필요한 파일 두 종류:
+  A. PiD diffusion checkpoint (선택한 모델 계열과 맞아야 함)
+     → ComfyUI/models/diffusion_models/
+  B. PiD 전용 Gemma ELM 텍스트 인코더 (다음 중 하나)
+     → ComfyUI/models/text_encoders/
+     - gemma_2_2b_it_elm_fp8_scaled.safetensors
+     - gemma_2_2b_it_elm_bf16.safetensors
+
+다운로드 페이지에서 파일을 선택해 다운로드 버튼을 누르고, 위 폴더에
+그대로 복사하세요. 여러 계열을 쓰면 계열별 PiD 체크포인트를 설치합니다.
+설치 후 파일 목록이 보이지 않으면 모델 목록을 새로고침하거나 ComfyUI를
+재시작하세요. PiD OFF라면 위의 추가 PiD 파일 없이 원본 생성이 됩니다.
+
+중요: PiD에 쓰는 "pixel_space" VAE는 최신 ComfyUI의 내장 가상 VAE
+항목입니다. 이름이 같은 별도 VAE 파일을 다운로드할 필요가 없습니다.
+단, 원본 이미지를 생성할 때 사용하는 일반 VAE는 별도로 필요합니다.
+
+6. 계열별 PiD 체크포인트 선택
+----------------------------
+  원본 모델 계열                 PiD 파일명 계열
+  -----------------------------------------------------------
+  Krea 2                        pid_qwenimage_...
+  Anima                         pid_qwenimage_...
+  Qwen Image                    pid_qwenimage_...
+  Z-Image                       pid_flux1_...
+  MOSS-Image                    pid_flux2_...
+  Qwen Image 2.1 (Turbo 포함)    PiD 미지원 (ON 비활성화)
+
+공식 페이지에서 찾을 수 있는 대표적인 4-step BF16 모델:
+
+  Krea 2 / Anima / Qwen Image:
+    pid_qwenimage_1024_to_4096_4step_bf16.safetensors
+    또는 pid_1.5_qwenimage_1024_to_4096_4step_bf16.safetensors
+
+  Z-Image (Flux.1 VAE 계열):
+    pid_flux1_512_to_2048_4step_bf16.safetensors
+    pid_flux1_1024_to_4096_4step_bf16.safetensors
+    또는 pid_1.5_flux1_1024_to_4096_4step_bf16.safetensors
+
+  MOSS-Image (Flux.2 latent 계열):
+    pid_flux2_512_to_2048_4step_bf16.safetensors
+    pid_flux2_1024_to_4096_4step_bf16.safetensors
+    또는 pid_1.5_flux2_1024_to_4096_4step_bf16.safetensors
+
+※ 위 v1.5 파일도 공식 페이지에 존재하지만, 이 독립 노드에서 각 파일의
+   실제 GPU 품질·호환성 검증이 완료된 것은 아닙니다. 처음에는 v1의
+   4step BF16 파일을 권장합니다. 단순한 파일명 일치만으로 호환성을
+   100% 보장할 수 없습니다. INT8/FP8/비4-step 변형도 별도 확인 후 사용하세요.
+※ '512_to_2048'은 대략 512px 입력→4배, '1024_to_4096'은 대략
+   1024px 입력→4배 목적의 모델입니다. 기본 생성 해상도 1152×896처럼
+   약 1메가픽셀인 경우 보통 1024_to_4096 계열을 먼저 시도합니다.
+   PiD 대상 크기는 실제 width/height의 각각 4배로 자동 설정됩니다.
+
+7. PiD ON/OFF와 내부 자동 처리
+-----------------------------
+  • OFF: PiD 모델과 Gemma를 불러오지 않습니다. 'PiD Image' 출력도
+    원본 이미지와 동일하여 다운스트림 노드를 유지할 수 있습니다.
+  • ON: PiD Model에서 모델 계열에 맞는 체크포인트만 고릅니다.
+    일반적인 완전 생성 latent에서는 나머지 PiD 설정을 우선 기본값으로
+    사용하면 됩니다. 별도의 PiD 서브그래프를 만들 필요가 없습니다.
+
+현재 노드의 PiD 기본값:
+  PiD Sampler: lcm(가능할 때)
+  PiD Scheduler: sgm_uniform(가능할 때), 없으면 simple 등 대체값
+  PiD Steps: 4
+  PiD Degrade Sigma: 0.0 (완전히 생성한 일반 이미지에 적합)
+  PiD Output Scale: 1(x4), 선택 시 0.5(x2)
+
+노드가 내부적으로 자동 처리하는 항목:
+  - 원본 생성 latent에 맞는 PiD conditioning / latent format
+  - PiD 전용 텍스트 인코딩과 unconditional 경로
+  - PiD CFG 1.0, denoise 1.0
+  - PiD Context Window, 방향에 따른 분할 축 및 겹침 설정
+  - 출력 목표 해상도 및 x2 선택 시 최종 축소
+  - 원본 이미지와 색·명암을 맞추는 Reinhard Lab 색상 보정
+
+따라서 대다수 사용자는 올바른 PiD 모델을 설치하고 선택한 다음
+PiD ON만 해도 됩니다. 다만 PiD Sampler/Scheduler/Steps/Degrade Sigma는
+UI에서 조정할 수 있고, 기본값이 모든 모델의 품질을 보장하지는 않습니다.
+
+예시: 원본 1024×1024 → PiD x4 4096×4096 / PiD x2 2048×2048
+PiD는 해상도뿐 아니라 이미지를 다시 생성하므로 세부 모습이 바뀔 수
+있으며, VRAM 사용량이 큽니다. 우선 batch_size=1로 시험하세요.
+
+8. LoRA 및 SageAttention
+------------------------
+  • + Add LoRA: 행을 추가하고 모델용 LoRA 파일을 선택합니다.
+  • 각 행에서 사용 ON/OFF, 모델 강도, 순서 변경, 삭제를 할 수 있습니다.
+  • LoRA는 텍스트 인코더가 아닌 생성 MODEL에만 적용됩니다.
+  • SageAttention OFF: 외부 KJNodes가 필요하지 않습니다.
+  • SageAttention ON: KJNodes의 Patch Sage Attention KJ가 필요하며,
+    메인 생성 모델에만 적용됩니다(PiD 모델에는 적용되지 않음).
+    https://github.com/kijai/ComfyUI-KJNodes
+
+9. 설정 기억: 언제 저장되나요?
+----------------------------
+모델 계열별 마지막 생성 설정은 **해당 노드의 생성 요청이 ComfyUI 큐에
+정상 접수된 후** 브라우저 localStorage에 기록됩니다.
+단순히 위젯 값만 바꾼 상태에서는 새 '마지막 생성 설정'으로 확정되지 않습니다.
+따라서 최초로 모델을 선택하고 Queue Prompt를 정상 접수시킨 다음부터
+그 계열의 마지막 사용 설정이 기억됩니다. GPU 생성이 나중에 실패해도
+큐 접수 이후라면 설정이 이미 저장됐을 수 있습니다.
+
+기억 대상(대표): 해당 계열의 diffusion model, text encoder, VAE,
+해상도, batch size, steps, CFG, sampler/scheduler, denoise, Zero Conditioning,
+PiD ON/OFF와 PiD 옵션, SageAttention, LoRA 목록/순서/강도.
+기억하지 않는 대상: Positive/Negative 프롬프트 텍스트, seed.
+
+Krea 2에서 생성한 뒤 Z-Image로 바꾸고 생성하면 두 계열의 마지막
+설정을 따로 기억합니다. 같은 계열로 돌아가면 마지막 사용 설정을
+불러옵니다. 노드별 저장값과 계열별 공통 마지막 값이 함께 관리됩니다.
+설정 기억은 현재 브라우저·ComfyUI 주소의 localStorage에 의존합니다.
+다른 브라우저/접속 주소, 사이트 데이터 삭제, 시크릿 창에서는 달라질 수
+있습니다. 저장된 워크플로우 자체의 노드 값은 별도로 관리됩니다.
+
+10. 모델별 특별 사항
+---------------------
+  • Qwen Image 2.1: 전용 TextEncodeQwenImage21 사용. Turbo 이름의
+    모델은 공식 8단계 수동 sigma 및 CFG 1 경로를 자동 사용하므로 일반
+    steps/scheduler/denoise/cfg 입력은 Turbo 실행에 사용되지 않습니다.
+    PiD는 비활성화됩니다.
+  • MOSS-Image: 모델에 필요한 Skip Layer Guidance를 자동 적용합니다.
+  • Qwen Image 2.1과 MOSS-Image: width/height는 16배수 필수.
+  • Krea 2 / Anima / Qwen Image: PiD용 latent는 qwenimage 계열입니다.
+    생성 모델 파일명이 다르더라도 PiD 모델은 위 표를 따르세요.
+
+11. 문제 해결
+--------------
+  • 노드가 보이지 않음: 압축 해제 폴더가 이중 중첩되지 않았는지 확인;
+    __init__.py 위치와 ComfyUI 시작 콘솔 오류를 확인, 완전 재시작.
+  • 모델이 드롭다운에 없음: 정확한 models/* 폴더에 파일을 넣고
+    ComfyUI 재시작 또는 목록 새로고침.
+  • PiD 모델이 없거나 계열 오류: 'pid_qwenimage', 'pid_flux1',
+    'pid_flux2' 중 현재 원본 모델 계열에 해당하는 파일을 선택.
+  • PiD text encoder 없음: 위 Gemma ELM 파일 설치 여부 확인.
+  • pixel_space VAE 오류: 별도 모델 파일이 아니라 ComfyUI 코어
+    기능이므로 ComfyUI 업데이트와 콘솔 오류를 확인.
+  • VRAM 부족(OOM): PiD OFF로 원본 먼저 테스트, batch 1,
+    더 작은 원본 해상도 사용. 4배 업스케일에는 많은 메모리가 필요.
+  • SageAttention 오류: OFF로 다시 실행하거나 호환 KJNodes 설치.
+  • Negative가 반영되지 않음: Zero Conditioning을 OFF로 설정하고,
+    사용 모델의 CFG·샘플링 특성도 확인.
+  • 언어 라벨이 바뀌지 않음: ComfyUI 언어 설정(KO/EN)을 변경하고,
+    브라우저를 새로고침해 최신 스크립트가 로드됐는지 확인.
+  • 모델별 설정이 기억되지 않음: 생성 요청이 정상 큐에 접수됐는지,
+    브라우저가 localStorage를 허용하는지, 콘솔 오류가 없는지 확인.
+
+12. 배포, 호환성 및 라이선스
+---------------------------
+노드 코드는 GPL-3.0(LICENSE 파일 참조)입니다. PiD 등 외부 모델
+가중치는 ZIP에 포함되지 않으며, 각 모델의 라이선스를 별도 확인하세요.
+PiD 공식 모델 페이지는 NSCLv1 등 모델별 사용 조건을 안내합니다.
+이 노드는 최신 ComfyUI 코어의 PiD, Qwen Image 2.1, MOSS 관련 노드가
+필요할 수 있습니다. Python/JavaScript 구문·모의 회귀 검증과 실제
+CUDA/GPU 모델 생성 검증은 다릅니다. 모든 환경에서 성공을 보장하지
+않으므로 실제 사용하는 모델을 먼저 시험해 주세요.
+이 독립 패키지를 준비하면서 기존 comfyui-Ultra-Tools 저장소/릴리즈는
+수정하지 않았습니다.
+
+
+ENGLISH USER GUIDE
+============================================================
+
+1. Overview
+-----------
+Ultra Image + PiD is a standalone ComfyUI custom node that combines
+multi-family text-to-image generation with optional PixelDiT (PiD) upscale.
+Supported families: Krea 2, Z-Image, Anima, Qwen Image,
+Qwen Image 2.1 (including Turbo), and MOSS-Image.
+Display/search name: Ultra Image + PiD
+Internal node ID: UltraStandaloneImagePiD
+Outputs: Original Image / PiD Image (upscaled or same as original).
+The umbrella Ultra Tools package is not required.
+
+2. Installation
+---------------
+1) Extract the ZIP under ComfyUI/custom_nodes/.
+2) Verify the layout:
+
+   ComfyUI/
+     custom_nodes/
+       comfyui-Ultra-Image-PiD/
+         __init__.py
+         ultra_image_pid.py
+         web/
+         locales/
+         manual.txt
+         예제/
+
+3) Restart ComfyUI completely; hard-refresh the browser (Ctrl+F5) if needed.
+4) Search for "Ultra Image + PiD" and add the node.
+5) Optionally open 예제/Ultra_Image_PiD_Standalone.json.
+
+This standalone node has a NEW ID, not the old UltraImagePiD identifier.
+Old umbrella-package workflows are not automatically migrated; create a
+new workflow for the standalone node.
+
+3. First image: required model selection
+----------------------------------------
+1) Select model_family first.
+2) Choose the matching diffusion_model.
+3) Choose the correct text_encoder for that model family.
+4) Choose the matching original-generation vae_name.
+5) Set width, height, steps, CFG, sampler_name, scheduler, etc.
+6) Optionally connect a STRING to Positive Prompt.
+7) Run Queue Prompt.
+
+Model weights are NOT bundled. The diffusion model, text encoder, VAE and
+model_family must match. Dimensions must be multiples of 8; Qwen Image 2.1
+and MOSS-Image require multiples of 16.
+
+4. Prompts and Zero Conditioning
+--------------------------------
+Both Positive Prompt and Negative Prompt are optional STRING sockets.
+- Empty/unconnected Positive: encode empty positive text; the node does NOT
+  inject a preset prompt or generate a predetermined default image.
+- Zero Conditioning ON (default): ignore connected Negative text completely.
+  Krea 2 / Z-Image / Anima / Qwen Image use ConditioningZeroOut.
+  Qwen Image 2.1 / MOSS-Image encode empty negative text instead, matching
+  their model-specific official conditioning paths.
+- Zero Conditioning OFF: encode provided Negative text. If unconnected,
+  empty or whitespace only, encode the empty string.
+
+This switch affects the ORIGINAL generation, not the internal PiD negative
+conditioning. With CFG=1, a negative prompt may have little or no influence
+in some samplers and model families.
+
+5. Download and install PiD assets
+---------------------------------
+Official PiD diffusion models:
+https://huggingface.co/Comfy-Org/PixelDiT/tree/main/diffusion_models
+
+Official PiD Gemma text encoders:
+https://huggingface.co/Comfy-Org/PixelDiT/tree/main/text_encoders
+
+PiD ON requires these two asset types:
+A) Matching PiD diffusion checkpoint
+   -> ComfyUI/models/diffusion_models/
+B) PiD Gemma ELM text encoder (ONE of the following)
+   -> ComfyUI/models/text_encoders/
+   - gemma_2_2b_it_elm_fp8_scaled.safetensors
+   - gemma_2_2b_it_elm_bf16.safetensors
+
+Choose a file on the official page, click Download, and place it in the
+corresponding local folder. Install one PiD checkpoint per family you use.
+Refresh model lists or restart ComfyUI if newly copied files do not appear.
+PiD OFF needs no PiD-specific model files.
+
+IMPORTANT: the PiD "pixel_space" VAE is a BUILT-IN virtual VAE entry in
+recent ComfyUI. No separate pixel_space VAE weight file is required.
+You still need the normal VAE for ORIGINAL image generation.
+
+6. Which PiD checkpoint matches my model?
+-----------------------------------------
+  Generation family                PiD filename family
+  ---------------------------------------------------------
+  Krea 2                           pid_qwenimage_...
+  Anima                            pid_qwenimage_...
+  Qwen Image                       pid_qwenimage_...
+  Z-Image                          pid_flux1_...
+  MOSS-Image                       pid_flux2_...
+  Qwen Image 2.1 (incl. Turbo)      Unsupported: PiD toggle locked OFF
+
+Representative official 4-step BF16 checkpoints:
+
+  Krea 2 / Anima / Qwen Image:
+    pid_qwenimage_1024_to_4096_4step_bf16.safetensors
+    or pid_1.5_qwenimage_1024_to_4096_4step_bf16.safetensors
+
+  Z-Image (Flux.1 VAE/latent):
+    pid_flux1_512_to_2048_4step_bf16.safetensors
+    pid_flux1_1024_to_4096_4step_bf16.safetensors
+    or pid_1.5_flux1_1024_to_4096_4step_bf16.safetensors
+
+  MOSS-Image (Flux.2 latent):
+    pid_flux2_512_to_2048_4step_bf16.safetensors
+    pid_flux2_1024_to_4096_4step_bf16.safetensors
+    or pid_1.5_flux2_1024_to_4096_4step_bf16.safetensors
+
+NOTE: v1.5 files exist in the official repository, but their GPU behavior
+has NOT been fully validated with this particular standalone node. For a
+first test, prefer a v1 4-step BF16 checkpoint. A matching filename alone
+does not guarantee compatibility; verify INT8/FP8/non-4-step variants
+separately.
+
+"512_to_2048" targets roughly 512px input -> 4x output; "1024_to_4096"
+targets roughly 1024px input -> 4x output. For the default 1152x896
+(~1 megapixel) generation, start with a 1024_to_4096-family checkpoint.
+The node automatically sets target width and height to 4x the actual
+source dimensions.
+
+7. PiD controls and automatic internal handling
+------------------------------------------------
+- OFF: PiD checkpoint and Gemma are not loaded. PiD Image mirrors Original.
+- ON: select the correctly matched PiD Model. For a normally fully
+denoised base image, leave the other PiD controls at their defaults first.
+No separate PiD subgraph is necessary.
+
+Current default PiD controls:
+  PiD Sampler: lcm, when available
+  PiD Scheduler: sgm_uniform when available; fallback such as simple
+  PiD Steps: 4
+  PiD Degrade Sigma: 0.0 for a fully denoised normal generated latent
+  PiD Output Scale: 1(x4), optionally 0.5(x2)
+
+Handled internally without manual nodes or wiring:
+  - Source-family PiD conditioning and latent format
+  - PiD text encoding and unconditional negative path
+  - Fixed PiD CFG=1.0 and denoise=1.0
+  - Context Windows, axis selection and overlap
+  - 4x target latent sizing and optional final 2x downscaling
+  - Reinhard Lab color/luminance matching to Original Image
+
+In normal usage, install/select the correct PiD model and switch PiD ON.
+The extra controls remain adjustable; their defaults are not a guarantee
+of quality for every model or environment.
+
+Example: 1024x1024 base -> 4096x4096 PiD x4, or 2048x2048 PiD x2.
+PiD re-generates image detail rather than merely resizing; fine details
+may change, and GPU memory needs can be high. Start with batch_size=1.
+
+8. LoRA and SageAttention
+------------------------
+- + Add LoRA inserts a model-only LoRA row.
+- Each row supports enable/disable, strength, reordering and removal.
+- LoRAs affect the generation MODEL, not the text encoder.
+- SageAttention OFF: no external KJNodes dependency.
+- SageAttention ON: requires compatible KJNodes Patch Sage Attention KJ;
+  applied only to the original generation model, NOT PiD.
+  https://github.com/kijai/ComfyUI-KJNodes
+
+9. Remembered settings: when are they saved?
+--------------------------------------------
+Last-used settings for each model family are recorded in browser localStorage
+AFTER a generation request from this node has been successfully accepted
+into the ComfyUI queue. Simply changing widgets without queueing does not
+commit a new last-generated preset. Once you select a model and successfully
+queue the FIRST run, those settings become available for future restoration.
+If the GPU run subsequently fails, settings may already have been saved.
+
+Remembered (examples): diffusion model, text encoder, VAE, resolution,
+batch size, steps, CFG, sampler/scheduler, denoise, Zero Conditioning,
+PiD ON/OFF and controls, SageAttention, LoRA files/order/strength.
+NOT remembered: Positive/Negative prompt text and seed.
+
+Each family has its own last-used settings: Krea 2 and Z-Image do not share
+presets. There are node-specific settings and a family-wide most-recent
+fallback. The data depends on your browser and ComfyUI origin. A new
+browser, private window, changed site URL, or cleared site data may not
+retain it. Saved workflow widget values are managed independently.
+
+10. Model-specific notes
+------------------------
+- Qwen Image 2.1 uses TextEncodeQwenImage21. Models with "Turbo" in their
+  filename use the official fixed 8-step sigma schedule and CFG 1;
+  general steps/scheduler/denoise/cfg inputs do not control the Turbo path.
+  PiD is disabled for Qwen Image 2.1.
+- MOSS-Image applies its required Skip Layer Guidance automatically.
+- Qwen Image 2.1 and MOSS-Image require widths/heights divisible by 16.
+- Krea 2 / Anima / Qwen Image share the qwenimage-compatible PiD latent;
+  pick the PiD family by the table above, not by generator filename.
+
+11. Troubleshooting
+-------------------
+- Node missing: avoid an extra nesting level inside custom_nodes; verify
+  __init__.py location, restart ComfyUI, and inspect its startup console.
+- Missing model in dropdown: put the file in the matching models/* folder,
+  refresh available lists or restart ComfyUI.
+- PiD missing/wrong family: use pid_qwenimage / pid_flux1 / pid_flux2
+  that matches the current generation family.
+- No PiD text encoder: install one Gemma ELM file listed above.
+- pixel_space VAE error: this is a core feature, not a downloadable VAE;
+  check ComfyUI version and startup/runtime console messages.
+- Out-of-memory (OOM): try PiD OFF first, batch 1, smaller source size.
+- SageAttention error: switch OFF or install compatible KJNodes.
+- Negative ignored: switch Zero Conditioning OFF; check model CFG behavior.
+- Locale label not refreshed: set ComfyUI Locale to KO/EN and, if needed,
+  hard-refresh the browser to pick up the latest frontend script.
+- Settings not remembered: verify a request was accepted into the queue,
+  localStorage is available and the browser console shows no errors.
+
+12. Release and licenses
+------------------------
+The custom-node source uses GPL-3.0 (see LICENSE). External diffusion,
+text-encoder, VAE and PiD model weights are NOT redistributed inside the
+ZIP; review their separate licenses (the official PiD repository lists
+NSCLv1 model terms). Recent ComfyUI core support is required for the
+model-specific PiD/Qwen Image 2.1/MOSS feature set.
+Syntax and simulated regression testing do NOT prove successful CUDA/GPU
+runs for every model; test your actual installed models before production
+use. Preparing this standalone ZIP does NOT modify the original
+comfyui-Ultra-Tools GitHub repository or releases.

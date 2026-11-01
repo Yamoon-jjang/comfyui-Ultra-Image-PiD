@@ -1,1 +1,5 @@
-# Initial repository bootstrap; the verified full source tree follows in the next commit.
+__pycache__/
+*.py[cod]
+.DS_Store
+.vscode/
+.idea/

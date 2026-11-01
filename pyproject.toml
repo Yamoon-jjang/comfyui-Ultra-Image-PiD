@@ -1,0 +1,16 @@
+[project]
+name = "comfyui-ultra-image-pid"
+version = "1.0.0"
+description = "Ultra Image + PiD: ComfyUI multi-model image generator with LoRA and optional PixelDiT upscale."
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Yamoon-jjang/comfyui-Ultra-Image-PiD"
+
+[tool.comfy]
+PublisherId = "yamoon-jjang"
+DisplayName = "Ultra Image + PiD"
+Icon = ""
+includes = []

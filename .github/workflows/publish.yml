@@ -1,0 +1,35 @@
+name: Publish Ultra Image + PiD to Comfy Registry
+
+# First upload attempts Registry publication only when the publisher token exists.
+# A manual Actions workflow_dispatch is available after adding the secret.
+# Publishing a version does not guarantee Active approval in ComfyUI Manager.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'pyproject.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  publish-node:
+    name: Publish to Comfy Registry (if token is configured)
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'Yamoon-jjang' }}
+    env:
+      REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Preserve Korean filenames
+        run: git config --global core.quotePath false
+      - name: Explain missing Registry publisher token
+        if: ${{ env.REGISTRY_ACCESS_TOKEN == '' }}
+        run: echo 'Registry publish skipped. Add repository Actions secret REGISTRY_ACCESS_TOKEN and rerun this workflow manually.'
+      - name: Publish to Registry
+        if: ${{ env.REGISTRY_ACCESS_TOKEN != '' }}
+        uses: Comfy-Org/publish-node-action@v1
+        with:
+          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}

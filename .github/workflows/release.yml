@@ -1,0 +1,60 @@
+name: Release Ultra Image + PiD install ZIP
+
+# GitHub release does not require a Registry token.
+# Run for new versions and manually for an explicit repeat.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [pyproject.toml]
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'Yamoon-jjang' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Package installable ZIP
+        run: |
+          python3 - <<'PYZIP'
+          import pathlib, subprocess, zipfile, re
+          src = pathlib.Path('pyproject.toml').read_text(encoding='utf-8')
+          match = re.search(r'(?m)^version\s*=\s*"([^"]+)"', src)
+          if not match: raise SystemExit('Missing project version')
+          version = match.group(1)
+          archive = f'comfyui-Ultra-Image-PiD-v{version}.zip'
+          names = [s.decode('utf-8') for s in subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0') if s]
+          with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+              for name in names:
+                  if name.startswith('.github/') or name == '.gitignore': continue
+                  z.write(name, 'comfyui-Ultra-Image-PiD/'+name)
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              files = z.namelist()
+              assert all(f.startswith('comfyui-Ultra-Image-PiD/') for f in files)
+              assert 'comfyui-Ultra-Image-PiD/__init__.py' in files
+              assert 'comfyui-Ultra-Image-PiD/manual.txt' in files
+              print('Verified:',archive, 'entries:',len(files))
+          pathlib.Path('/tmp/ultra-image-pid-release-name').write_text(archive)
+          pathlib.Path('/tmp/ultra-image-pid-tag').write_text('v'+version)
+          PYZIP
+      - name: Publish GitHub Release with KO/EN notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          archive="$(cat /tmp/ultra-image-pid-release-name)"
+          tag="$(cat /tmp/ultra-image-pid-tag)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; keeping it unchanged."
+          else
+            gh release create "$tag" "$archive" \
+              --target "$GITHUB_SHA" \
+              --title "Ultra Image + PiD $tag — Standalone ComfyUI Node" \
+              --notes-file RELEASE_NOTES_v1.0.0.md \
+              --latest
+          fi

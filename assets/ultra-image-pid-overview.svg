@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1460" height="610" viewBox="0 0 1460 610" role="img" aria-label="Ultra Image + PiD node overview: one ComfyUI node for multiple AI image models, LoRAs, original output, optional PiD upscaling, and automatic Korean English UI">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#11192d"/><stop offset="1" stop-color="#080d18"/></linearGradient><linearGradient id="acc" x2="1"><stop stop-color="#59a8ff"/><stop offset="1" stop-color="#b28aff"/></linearGradient><filter id="shadow" x="-20%" y="-30%" width="140%" height="170%"><feDropShadow dx="0" dy="6" stdDeviation="13" flood-color="#020716" flood-opacity=".42"/></filter></defs>
+<rect width="1460" height="610" rx="28" fill="url(#bg)"/>
+<rect x="29" y="26" width="1402" height="558" rx="20" fill="none" stroke="#52658b" opacity=".35"/>
+<text x="72" y="95" font-size="51" font-family="Arial, Noto Sans KR, sans-serif" fill="#f2f6ff" font-weight="750">Ultra Image + PiD</text>
+<text x="73" y="137" font-family="Arial, Noto Sans KR, sans-serif" font-size="21" fill="#bac8e5">여러 이미지 모델을 하나의 노드로 · All-in-one image generation &amp; optional PiD upscaling</text>
+<rect x="1084" y="61" width="310" height="52" rx="16" fill="#202b47" stroke="#8ea3e6" stroke-width="1.5"/>
+<text x="1239" y="83" font-family="Arial, Noto Sans KR, sans-serif" font-size="17" text-anchor="middle" fill="#f1f5ff" font-weight="700">한국어 / English UI</text>
+<text x="1239" y="103" font-family="Arial, Noto Sans KR, sans-serif" font-size="12" text-anchor="middle" fill="#c8d4f4">Automatically follows ComfyUI language</text>
+<rect x="74" y="180" width="286" height="291" rx="17" fill="#1b263b" stroke="#5777a4" filter="url(#shadow)"/>
+<circle cx="96" cy="204" r="7" fill="#66d3ae"/>
+<text x="115" y="213" font-family="Arial, Noto Sans KR, sans-serif" font-size="22" font-weight="700" fill="#f4f8ff">Prompt inputs</text>
+<text x="97" y="255" font-family="Arial, Noto Sans KR, sans-serif" font-size="18" fill="#c3d5f7">Positive Prompt</text>
+<rect x="98" y="270" width="237" height="65" rx="9" fill="#111a2b"/>
+<text x="111" y="294" font-family="Arial, sans-serif" font-size="16" fill="#c5d1e9">Subject, action, scene</text>
+<text x="111" y="319" font-family="Arial, sans-serif" font-size="16" fill="#c5d1e9">Lighting, composition...</text>
+<text x="97" y="374" font-family="Arial, Noto Sans KR, sans-serif" font-size="18" fill="#c3d5f7">Negative Prompt</text>
+<rect x="98" y="388" width="237" height="55" rx="9" fill="#111a2b"/>
+<text x="111" y="421" font-family="Arial, sans-serif" font-size="16" fill="#c5d1e9">Optional / 선택 입력</text>
+<path d="M366 321 H414" stroke="#62dbb0" stroke-width="5" stroke-linecap="round"/><path d="M405 309 L424 321 405 333" fill="none" stroke="#62dbb0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="425" y="180" width="460" height="291" rx="17" fill="#202d47" stroke="#7b8df8" stroke-width="2" filter="url(#shadow)"/>
+<circle cx="451" cy="206" r="8" fill="#87ddff"/>
+<text x="474" y="215" font-family="Arial, Noto Sans KR, sans-serif" font-size="26" fill="#f3f6ff" font-weight="750">Ultra Image + PiD</text>
+<line x1="450" y1="234" x2="856" y2="234" stroke="#445777"/>
+<text x="452" y="267" font-family="Arial, Noto Sans KR, sans-serif" font-size="18" fill="#e0eafa">모델 계열 선택 · Select model family</text>
+<rect x="452" y="282" width="406" height="40" rx="9" fill="#101c33" stroke="#354e79"/>
+<text x="470" y="308" font-family="Arial, sans-serif" font-size="18" fill="#a6cfff">Krea 2  ·  Z-Image  ·  Anima  ·  ...</text>
+<text x="452" y="356" font-family="Arial, Noto Sans KR, sans-serif" font-size="18" fill="#e0eafa">LoRA 여러 개 적용 · Multiple LoRAs</text>
+<rect x="452" y="373" width="170" height="54" rx="13" fill="#243d64" stroke="#4d80c4"/><text x="537" y="407" font-family="Arial, sans-serif" font-size="19" fill="#e7f2ff" text-anchor="middle">Original</text>
+<rect x="645" y="373" width="213" height="54" rx="13" fill="#3c2b60" stroke="#b18af5"/><text x="751" y="407" font-family="Arial, sans-serif" font-size="19" fill="#f5edff" text-anchor="middle">PiD: ON / OFF</text>
+<path d="M885 311 H943 V258 H967" stroke="#6acbff" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M957 247 L975 258 957 269" fill="none" stroke="#6acbff" stroke-width="5" stroke-linejoin="round"/>
+<path d="M943 311 V394 H967" stroke="#af8eff" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M957 383 L975 394 957 405" fill="none" stroke="#af8eff" stroke-width="5" stroke-linejoin="round"/>
+<rect x="980" y="187" width="388" height="136" rx="15" fill="#18354a" stroke="#4db3ed" stroke-width="2" filter="url(#shadow)"/>
+<text x="1012" y="235" font-family="Arial, Noto Sans KR, sans-serif" font-size="25" fill="#f3faff" font-weight="700">Original Image</text>
+<text x="1012" y="269" font-family="Arial, Noto Sans KR, sans-serif" font-size="17" fill="#c3eaff">기본 생성 이미지 · Generated image</text>
+<rect x="980" y="333" width="388" height="136" rx="15" fill="#36274e" stroke="#a27bfa" stroke-width="2" filter="url(#shadow)"/>
+<text x="1012" y="380" font-family="Arial, Noto Sans KR, sans-serif" font-size="25" fill="#fbf5ff" font-weight="700">PiD Image</text>
+<text x="1012" y="414" font-family="Arial, Noto Sans KR, sans-serif" font-size="17" fill="#e5d5ff">선택 업스케일 · Optional 2× / 4×</text>
+<rect x="73" y="501" width="1315" height="55" rx="14" fill="#202b42" stroke="#455b86"/>
+<text x="730" y="524" text-anchor="middle" font-family="Arial, Noto Sans KR, sans-serif" fill="#f0f5ff" font-size="20" font-weight="650">Krea 2   •   Z-Image   •   Anima   •   Qwen Image   •   Qwen Image 2.1   •   MOSS-Image</text>
+<text x="730" y="546" text-anchor="middle" font-family="Arial, Noto Sans KR, sans-serif" fill="#b8c8e3" font-size="13">PiD upscaling depends on model-family compatibility; Qwen Image 2.1 PiD is not supported.</text>
+</svg>

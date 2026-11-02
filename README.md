@@ -6,7 +6,7 @@
 
 **언어 자동 전환 / Automatic Korean–English UI:** 노드의 메뉴·설정 표시 언어는 **ComfyUI 언어 설정에 따라 자동으로 한국어 또는 영어로 전환**됩니다. 별도 언어 전환 스위치는 필요하지 않습니다. / **The node's menus and setting labels automatically follow the ComfyUI language setting (Korean or English).** No separate language switch is needed.
 
-![Ultra Image + PiD — 한국어·English UI, image generation and PiD upscaling](assets/ultra-image-pid.png)
+![Ultra Image + PiD — 한국어·English UI, image generation and PiD upscaling](https://github.com/Yamoon-jjang/comfyui-Ultra-Image-PiD/raw/main/assets/ultra-image-pid.png)
 
 *노드 인터페이스, 주요 기능과 생성 결과 예시 / Overview of the node interface, key features and an example generated image. UI labels automatically follow the ComfyUI language setting (한국어 / English).*
 

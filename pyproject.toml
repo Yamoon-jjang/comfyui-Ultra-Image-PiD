@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-ultra-image-pid"
-version = "1.0.0"
+version = "1.0.1"
 description = "Ultra Image + PiD: ComfyUI multi-model image generator with LoRA and optional PixelDiT upscale."
 requires-python = ">=3.10"
 license = { file = "LICENSE" }

@@ -1,5 +1,5 @@
 ﻿Ultra Image + PiD — 사용 설명서 / USER MANUAL
-버전 / Version: 1.0.1
+버전 / Version: 1.0.2
 한국어 안내 (English guide follows below)
 ============================================================
 
@@ -65,6 +65,14 @@ Positive Prompt와 Negative Prompt는 모두 선택형 STRING 입력 소켓입�
 이 설정은 원본 이미지 생성에만 적용됩니다. PiD의 Negative와 CFG는
 노드 내부에서 별도로 처리됩니다. CFG 1에서는 모델/샘플러에 따라
 Negative Prompt가 출력에 거의 영향을 주지 않을 수 있습니다.
+
+[실제 프롬프트 기록 — v1.0.2]
+Positive/Negative는 연결선으로만 들어오므로 예전에는 실제 문장이 이미지에
+남지 않았습니다. v1.0.2부터 노드가 실제로 인코딩한 긍정/부정 프롬프트를
+이미지 메타데이터의 "ultra_generation_prompts" 항목에 기록합니다.
+번역기·LLM 노드를 거친 프롬프트도 변환 후 문장이 남고, Ultra Exif Reader
+v4.12 이상에서 Final CLIP 프롬프트로 표시됩니다. 캐시로 실행이 생략돼도
+기록이 유지되며, 기록 실패는 생성을 멈추지 않습니다.
 
 5. PiD에 필요한 파일: 다운로드 및 설치
 ---------------------------------------
@@ -300,6 +308,14 @@ Both Positive Prompt and Negative Prompt are optional STRING sockets.
 This switch affects the ORIGINAL generation, not the internal PiD negative
 conditioning. With CFG=1, a negative prompt may have little or no influence
 in some samplers and model families.
+
+[Executed prompt record — v1.0.2]
+Both prompts arrive only through links, so the real text used to be missing
+from saved images. Since v1.0.2 the node writes the positive/negative text it
+actually encoded into the image metadata under "ultra_generation_prompts".
+Translator/LLM output is kept as the converted text; Ultra Exif Reader v4.12+
+shows it as the Final CLIP prompt. Cached re-runs keep the record, and a
+failed record never stops generation.
 
 5. Download and install PiD assets
 ---------------------------------

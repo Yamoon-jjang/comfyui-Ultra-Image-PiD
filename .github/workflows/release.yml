@@ -55,6 +55,6 @@ jobs:
             gh release create "$tag" "$archive" \
               --target "$GITHUB_SHA" \
               --title "Ultra Image + PiD $tag — Standalone ComfyUI Node" \
-              --notes-file RELEASE_NOTES_v1.0.0.md \
+              --notes-file RELEASE_NOTES_v1.0.2.md \
               --latest
           fi

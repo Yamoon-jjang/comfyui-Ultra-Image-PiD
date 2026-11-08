@@ -26,6 +26,8 @@ import folder_paths
 import nodes
 import comfy.samplers
 
+from .ultra_prompt_record import record_prompt, register as register_prompt_record
+
 
 MAX_RESOLUTION = 16384
 MAX_SEED = 0xFFFFFFFFFFFFFFFF
@@ -1207,6 +1209,8 @@ class UltraImagePiD:
                 "negative_prompt": ("STRING", {"forceInput": True,
                     "tooltip": "Optional negative STRING. Auto uses family default when empty."}),
             }),
+            # Used only to record the encoded prompt in saved image metadata.
+            "hidden": {"extra_pnginfo": "EXTRA_PNGINFO", "unique_id": "UNIQUE_ID"},
         }
 
     def _resolve_clip_type(self, contract: dict) -> str:
@@ -1510,6 +1514,8 @@ class UltraImagePiD:
         negative_prompt: Optional[str] = None,
         **lora_values,
     ):
+        extra_pnginfo = lora_values.pop("extra_pnginfo", None)
+        unique_id = lora_values.pop("unique_id", None)
         prompt = str(positive_prompt or "").strip()
         negative_prompt = str(negative_prompt or "").strip()
         zero_conditioning = bool(zero_conditioning)
@@ -1722,6 +1728,14 @@ class UltraImagePiD:
                 )
             ) from exc
 
+        record_prompt(
+            extra_pnginfo, unique_id, "UltraStandaloneImagePiD",
+            positive=prompt,
+            negative=None if zero_conditioning else negative_prompt,
+            positive_input=None,
+            zero_conditioning=zero_conditioning,
+        )
+
         if pid_enabled:
             if vae is not None:
                 del vae
@@ -1780,6 +1794,8 @@ class UltraImagePiD:
             pid_image = original_image
         return (original_image, pid_image)
 
+
+register_prompt_record("UltraStandaloneImagePiD")
 
 NODE_CLASS_MAPPINGS = {"UltraStandaloneImagePiD": UltraImagePiD}
 NODE_DISPLAY_NAME_MAPPINGS = {"UltraStandaloneImagePiD": "Ultra Image + PiD"}

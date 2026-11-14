@@ -59,6 +59,34 @@ const PID_SAMPLER_WIDGET = "pid_sampler";
 const PID_SCHEDULER_WIDGET = "pid_scheduler";
 const PID_DEGRADE_SIGMA_WIDGET = "pid_degrade_sigma";
 const PID_OUTPUT_SCALE_WIDGET = "pid_output_scale";
+const MINIMAX_FAMILY = "MiniMax H3 Image";
+const MINIMAX_FIXED = {
+  batch_size: 1, steps: 6, cfg: 1, sampler_name: "euler", scheduler: "simple",
+  denoise: 1, zero_conditioning: true, sage_attention: false, pid_upscale: false,
+};
+const MINIMAX_ASSETS = {
+  diffusion_model: /minimax.*h3.*image/i,
+  text_encoder: /qwen3[._-]?vl.*minimax[._-]?h3/i,
+  vae_name: /minimax[._-]?h3[._-]?image.*vae/i,
+};
+// Initial recommendation only: never replace a user's remembered model file.
+// The official int8_convrot variants are lighter than the matching BF16 files.
+const MINIMAX_FIRST_USE_PREFERRED = /int8[_-]?convrot/i;
+const MINIMAX_NATIVE_SIZE_TOOLTIP = [
+  "MiniMax H3 Image uses multiples of 32. Native ~16MP examples: 4096×4096 (1:1), 4736×3552 (4:3), 5024×3360 (3:2), 5472×3072 (16:9), 6272×2688 (21:9); portrait sizes can be transposed. Start at 2048×2048 to save memory.",
+  "MiniMax H3 Image는 32픽셀 배수입니다. 네이티브 약 16MP 예: 4096×4096(1:1), 4736×3552(4:3), 5024×3360(3:2), 5472×3072(16:9), 6272×2688(21:9). 세로형은 가로·세로를 바꿉니다. 메모리 절약을 위해 2048×2048부터 시작하세요.",
+];
+// Only consulted when exiting H3 for an otherwise unconfigured legacy family;
+// do not change legacy -> legacy first-use behavior or established profiles.
+const LEGACY_RETURN_ASSETS = {
+  "Krea 2": { diffusion_model: /krea.*2/i },
+  "Z-Image": { diffusion_model: /z[._-]?image/i },
+  "Anima": { diffusion_model: /anima/i },
+  "Qwen Image": { diffusion_model: /qwen.*image/i },
+  "Qwen Image 2.1": { diffusion_model: /qwen.*(?:2[._-]?1|21)/i,
+    text_encoder: /qwen.*3.*vl/i, vae_name: /qwen.*2[._-]?1.*vae/i },
+  "MOSS-Image": { diffusion_model: /moss/i },
+};
 // Mirror of the PiD part of LATENT_SPACES / MODEL_CONTRACTS in
 // ultra_image_pid.py. Keep both in sync.
 // PiD is bound to a latent space, not to the model that produced the latent.
@@ -69,8 +97,8 @@ const FAMILY_LATENT_SPACE = {
   "Qwen Image": "wan21",
   "Qwen Image 2.1": "qwen21",
   "MOSS-Image": "flux2",
+  "MiniMax H3 Image": "minimax_h3",
 };
-const DEFAULT_LATENT_SPACE = "wan21";
 const LATENT_SPACE_PID = {
   wan21: {
     token: "qwenimage",
@@ -81,6 +109,7 @@ const LATENT_SPACE_PID = {
   flux2: { token: "flux2", exclude: [] },
   // Qwen-Image 2.1 (64ch / 16x): no PiD checkpoint yet.
   qwen21: { token: null, exclude: [] },
+  minimax_h3: { token: null, exclude: [] },
 };
 const PID_MODEL_PLACEHOLDER = "<auto PiD model>";
 const PID_SAMPLER_DEFAULT = "lcm";
@@ -191,10 +220,20 @@ function localizeNode(node) {
   for (const input of node.inputs || []) {
     const labels = INPUT_LABELS[input.name];
     if (labels) input.label = tr(...labels);
+    if (input.name === "negative_prompt" && String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY) {
+      input.label = tr("Negative Prompt (unused)", "부정 프롬프트 (미사용)");
+    }
   }
   for (const widget of node.widgets || []) {
     const labels = WIDGET_LABELS[widget.name];
     if (labels) widget.label = tr(...labels);
+    if (widget.name === "width" || widget.name === "height") {
+      if (!Object.hasOwn(widget, "__ultraOriginalSizeTooltip")) {
+        widget.__ultraOriginalSizeTooltip = widget.tooltip;
+      }
+      widget.tooltip = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY
+        ? tr(...MINIMAX_NATIVE_SIZE_TOOLTIP) : widget.__ultraOriginalSizeTooltip;
+    }
   }
   const pid = findWidget(node, PID_ENABLE_WIDGET);
   if (pid?.disabled) {
@@ -581,8 +620,83 @@ function pidEnabled(node) {
 }
 
 function pidSpecForFamily(family) {
-  const space = FAMILY_LATENT_SPACE[String(family || "")] || DEFAULT_LATENT_SPACE;
+  // Unknown model families must never inherit another family's PiD support.
+  const space = FAMILY_LATENT_SPACE[String(family || "")];
   return LATENT_SPACE_PID[space] || { token: null, exclude: [] };
+}
+
+function applyMiniMaxFirstUse(node) {
+  for (const [name, value] of Object.entries({ width: 2048, height: 2048, ...MINIMAX_FIXED })) {
+    setWidgetValue(node, findWidget(node, name), value);
+  }
+  const missing = [];
+  for (const [name, pattern] of Object.entries(MINIMAX_ASSETS)) {
+    const target = findWidget(node, name);
+    const matchingOptions = widgetOptionValues(target).filter(
+      (option) => pattern.test(String(option).split(/[\\/]/).pop()),
+    );
+    const matching = (name !== "vae_name"
+      ? matchingOptions.find((option) => MINIMAX_FIRST_USE_PREFERRED.test(String(option).split(/[\\/]/).pop()))
+      : undefined)
+      ?? matchingOptions[0];
+    if (matching) setWidgetValue(node, target, matching);
+    else missing.push(name);
+  }
+  replaceLoraRows(node, []);
+  if (missing.length) {
+    alertMessage(`MiniMax H3 Image: install/select matching ${missing.join(", ")} files before running.`,
+      `MiniMax H3 Image: 실행 전에 전용 ${missing.join(", ")} 파일을 설치·선택하세요.`);
+  }
+}
+
+function restoreUnconfiguredLegacyAssetsAfterH3(node, family) {
+  const hints = LEGACY_RETURN_ASSETS[family] || {};
+  const missing = [];
+  for (const name of ["diffusion_model", "text_encoder", "vae_name"]) {
+    const target = findWidget(node, name);
+    if (!target) continue;
+    // Never silently carry the H3-only asset into a non-H3 family. Prefer
+    // matching installed files, otherwise request an explicit user selection.
+    const candidates = widgetOptionValues(target).filter((option) => !/minimax[._-]?h3/i.test(option));
+    const hint = hints[name];
+    const match = hint ? candidates.find((option) => hint.test(String(option).split(/[\\/]/).pop())) : null;
+    if (match) setWidgetValue(node, target, match);
+    else if (/minimax[._-]?h3/i.test(String(target.value))) missing.push(name);
+  }
+  if (missing.length) {
+    alertMessage(`Select ${family} ${missing.join(", ")} manually. H3 assets cannot be reused.`,
+      `${family} 전용 ${missing.join(", ")} 파일을 직접 선택하세요. H3 모델 파일을 재사용할 수 없습니다.`);
+  }
+}
+
+function syncMiniMaxControls(node) {
+  const minimax = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY;
+  // Native H3 Conditioning requires 32px-aligned dimensions. The legacy
+  // generators retain their existing 16px drag/keyboard increment.
+  for (const name of ["width", "height"]) {
+    const target = findWidget(node, name);
+    if (target) {
+      target.options ||= {};
+      // Current ComfyUI number widgets use step2; the legacy step is 10x.
+      const sizeStep = minimax ? 32 : 16;
+      target.options.step2 = sizeStep;
+      target.options.step = sizeStep * 10;
+    }
+  }
+  for (const [name, value] of Object.entries(MINIMAX_FIXED)) {
+    const target = findWidget(node, name);
+    if (!target) continue;
+    if (minimax) target.value = value;
+    // PiD receives its own support lock, all other controls are available again.
+    if (name !== PID_ENABLE_WIDGET) target.disabled = minimax;
+  }
+  for (const slot of node.inputs || []) {
+    if (slot.name === "negative_prompt") {
+      slot.label = minimax ? tr("Negative Prompt (unused)", "부정 프롬프트 (미사용)")
+        : tr(...INPUT_LABELS.negative_prompt);
+    }
+  }
+  return minimax;
 }
 
 function normalizePathText(value) {
@@ -868,7 +982,7 @@ function replaceLoraRows(node, rows) {
 
 async function applyStoredSettingsForFamily(node, family, restoreToken, { restorePidToggle = true } = {}) {
   if (!node || !family) return false;
-  const stored = getStoredSettings(node, family);
+  const stored = node.__ultraFamilyDrafts?.[family] || getStoredSettings(node, family);
   const preparedLoras = stored ? await prepareLoraRows(stored.loras || []) : [];
   const isCurrentRequest = () =>
     Number(node.__ultraSettingsRestoreToken || 0) === Number(restoreToken) &&
@@ -891,12 +1005,24 @@ async function applyStoredSettingsForFamily(node, family, restoreToken, { restor
       }
       if (!isCurrentRequest()) return false;
       replaceLoraRows(node, preparedLoras);
+    } else if (family === MINIMAX_FAMILY) {
+      applyMiniMaxFirstUse(node);
+    } else if (node.__ultraLastFamilyWasMiniMax) {
+      // Only the new H3 route changes legacy first-use behavior. Avoid
+      // carrying H3's fixed dimensions/sampler into a never-used family.
+      for (const [name, value] of Object.entries({
+        width: 1152, height: 896, batch_size: 1, steps: 10, cfg: 1,
+        sampler_name: "euler", scheduler: "simple", denoise: 1,
+        zero_conditioning: true, sage_attention: false,
+      })) setWidgetValue(node, findWidget(node, name), value);
+      restoreUnconfiguredLegacyAssetsAfterH3(node, family);
     }
     if (!isCurrentRequest()) return false;
     const storedPidModel = stored?.standard?.pid_model;
     changed = syncPidModelOptions(node, family, storedPidModel) || changed;
     ensurePidComboDefaults(node);
     syncPidVisibility(node);
+    syncMiniMaxControls(node);
   } finally {
     node.__ultraRestoringFamilySettings = false;
   }
@@ -916,11 +1042,20 @@ function attachModelFamilyRestoreHook(node) {
   if (!widget || widget.__ultraModelFamilyRestoreHook) return false;
 
   const originalCallback = typeof widget.callback === "function" ? widget.callback : null;
+  node.__ultraCurrentFamily = String(getWidgetValue(node, "model_family") || "");
   widget.callback = function ultraImagePiDModelFamilyCallback(value, ...args) {
+    const oldFamily = node.__ultraCurrentFamily;
     const result = originalCallback ? originalCallback.call(this, value, ...args) : undefined;
     const family = String(value || widget.value || "");
+    if (oldFamily && oldFamily !== family && !node.__ultraConfiguredInProgress && !app?.configuringGraph) {
+      node.__ultraFamilyDrafts ||= Object.create(null);
+      node.__ultraFamilyDrafts[oldFamily] = { ...captureNodeSettings(node), family: oldFamily };
+    }
+    node.__ultraCurrentFamily = family;
+    node.__ultraLastFamilyWasMiniMax = oldFamily === MINIMAX_FAMILY && family !== MINIMAX_FAMILY;
     syncPidModelOptions(node, family);
     syncPidVisibility(node);
+    syncMiniMaxControls(node);
     localizeNode(node);
     const restoreToken = Number(node.__ultraSettingsRestoreToken || 0) + 1;
     node.__ultraSettingsRestoreToken = restoreToken;
@@ -950,11 +1085,13 @@ function ensureQueueHook() {
       const queuedIdsBefore = queuedPromptNodeIds(args);
       const settingsSnapshot = captureNodeSettingsEntries(queuedIdsBefore);
       const result = await original.apply(this, args);
-      try {
-        const queuedIds = queuedPromptNodeIds(args, result);
-        persistCapturedNodeSettings(settingsSnapshot, queuedIds.size ? queuedIds : queuedIdsBefore);
-      } catch (error) {
-        console.warn(tr("[Ultra Image + PiD] Failed to record per-family last generation settings", "[Ultra Image + PiD] 모델별 마지막 생성 설정 기록 실패"), error);
+      if (result !== false) {
+        try {
+          const queuedIds = queuedPromptNodeIds(args, result);
+          persistCapturedNodeSettings(settingsSnapshot, queuedIds.size ? queuedIds : queuedIdsBefore);
+        } catch (error) {
+          console.warn(tr("[Ultra Image + PiD] Failed to record per-family last generation settings", "[Ultra Image + PiD] 모델별 마지막 생성 설정 기록 실패"), error);
+        }
       }
       return result;
     };
@@ -1582,6 +1719,7 @@ app.registerExtension({
         syncPidModelOptions(this, getWidgetValue(this, "model_family"));
         ensurePidComboDefaults(this);
         syncPidVisibility(this);
+        syncMiniMaxControls(this);
         this._ultraLoraCounter = 0;
         for (const value of parseDynamicValues(savedValues.slice(standardCount))) {
           addLoraRow(this, value, null, false);
@@ -1605,6 +1743,7 @@ app.registerExtension({
     // applying the SAME core content-fit used after a user PiD toggle.
     // Do not invent margins or maintain a second height calculation.
     syncPidVisibility(node);
+    syncMiniMaxControls(node);
     localizeNode(node);
     fitAfterWidgetStructureChange(node);
   },
@@ -1626,6 +1765,7 @@ app.registerExtension({
     syncPidModelOptions(node, getWidgetValue(node, "model_family"));
     ensurePidComboDefaults(node);
     syncPidVisibility(node);
+    syncMiniMaxControls(node);
     ensureAddButton(node);
     localizeNode(node);
     // The core constructor measured six PiD controls before this extension

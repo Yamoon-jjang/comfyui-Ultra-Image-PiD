@@ -49,12 +49,17 @@ jobs:
         run: |
           archive="$(cat /tmp/ultra-image-pid-release-name)"
           tag="$(cat /tmp/ultra-image-pid-tag)"
+          notes_file="RELEASE_NOTES_${tag}.md"
+          if [ ! -f "$notes_file" ]; then
+            echo "Missing release notes for $tag: $notes_file" >&2
+            exit 1
+          fi
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; keeping it unchanged."
           else
             gh release create "$tag" "$archive" \
               --target "$GITHUB_SHA" \
               --title "Ultra Image + PiD $tag — Standalone ComfyUI Node" \
-              --notes-file RELEASE_NOTES_v1.0.2.md \
+              --notes-file "$notes_file" \
               --latest
           fi

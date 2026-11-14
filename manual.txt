@@ -1,5 +1,5 @@
 ﻿Ultra Image + PiD — 사용 설명서 / USER MANUAL
-버전 / Version: 1.0.2
+버전 / Version: 1.0.3
 한국어 안내 (English guide follows below)
 ============================================================
 
@@ -8,7 +8,7 @@
 Ultra Image + PiD는 ComfyUI에서 여러 이미지 모델의 생성과 선택적
 PiD(PixelDiT) 업스케일을 한 노드에서 실행하는 독립 커스텀 노드입니다.
 지원 모델: Krea 2 / Z-Image / Anima / Qwen Image /
-           Qwen Image 2.1 (Turbo 포함) / MOSS-Image
+           Qwen Image 2.1 (Turbo 포함) / MOSS-Image / MiniMax H3 Image
 노드 검색/표시 이름: Ultra Image + PiD
 독립 노드 ID: UltraStandaloneImagePiD
 출력 단자: Original Image(원본) / PiD Image(업스케일 또는 원본)
@@ -48,13 +48,36 @@ PiD(PixelDiT) 업스케일을 한 노드에서 실행하는 독립 커스텀 노
 
 모델 파일 자체는 패키지에 포함되지 않습니다. 모델 계열, 모델, 인코더,
 VAE가 서로 호환되어야 합니다. 해상도는 최소 8의 배수여야 하며
-Qwen Image 2.1과 MOSS-Image는 16의 배수가 필요합니다.
+Qwen Image 2.1과 MOSS-Image는 16의 배수,
+MiniMax H3 Image는 32의 배수가 필요합니다.
+
+[MiniMax H3 Image 공식 T2I 경로 — v1.0.3]
+  diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
+  text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
+  vae/minimax_h3_image_vae_fp16.safetensors
+  위 파일을 해당 ComfyUI/models/ 하위 폴더에 설치합니다.
+  최신 ComfyUI 코어의 MiniMaxH3ImageConditioning을 사용합니다.
+  이 전용 노드가 Positive Conditioning과 5D latent를 함께 생성하며,
+  일반 Empty Latent 생성 경로는 사용하지 않습니다.
+  첫 선택에서 2048×2048, Steps 6, CFG 1, euler/simple, Denoise 1,
+  Batch Size 1, Zero Conditioning ON이 자동 설정·잠금됩니다.
+  최초 자동 추천에서는 경량 int8_convrot 모델/인코더가 설치되어 있으면
+  BF16보다 우선 선택합니다. 기존에 저장된 모델 선택은 유지합니다.
+  공식 4096×4096 등 약 16MP 네이티브 해상도를 PiD 없이 지원합니다.
+  가로·세로 값은 32픽셀 단위로 입력하며, 16의 배수만 맞는 값은
+  오류가 발생할 수 있으므로 조절 간격도 H3 선택 시 32로 바뀝니다.
+  Negative STRING 연결은 유지하되 적용하지 않고 PiD와 SageAttention은
+  OFF로 고정합니다. 모델 전용 LoRA는 선택적으로 사용할 수 있습니다.
+  빈 긍정 프롬프트는 오류입니다. 외부 LLM/프롬프트 확장기의 STRING
+  출력을 Positive에 연결할 수 있지만 확장기를 자체 내장하지는 않습니다.
+  GPU 품질·VRAM 호환성은 사용자의 환경에서 직접 확인해야 합니다.
 
 4. Positive / Negative 입력 및 Zero Conditioning
 -------------------------------------------------
 Positive Prompt와 Negative Prompt는 모두 선택형 STRING 입력 소켓입니다.
   • Positive 미연결/빈 문자열/공백: 빈 긍정 프롬프트를 인코딩해 생성합니다.
     특정한 고정 이미지나 임의의 기본 프롬프트를 넣지 않습니다.
+    예외: MiniMax H3 Image에서는 내용 있는 긍정 프롬프트가 필수입니다.
   • Zero Conditioning ON (기본값): Negative 연결선에 텍스트가 있더라도
     무시하고 모델 계열에 맞는 무조건(unconditional) conditioning을 사용합니다.
     Krea 2, Z-Image, Anima, Qwen Image → ConditioningZeroOut 사용.
@@ -109,6 +132,7 @@ PiD ON 전에 필요한 파일 두 종류:
   Z-Image                       pid_flux1_...
   MOSS-Image                    pid_flux2_...
   Qwen Image 2.1 (Turbo 포함)    PiD 미지원 (ON 비활성화)
+  MiniMax H3 Image             PiD 미지원 (ON 비활성화)
 
 공식 페이지에서 찾을 수 있는 대표적인 4-step BF16 모델:
 
@@ -250,7 +274,7 @@ ENGLISH USER GUIDE
 Ultra Image + PiD is a standalone ComfyUI custom node that combines
 multi-family text-to-image generation with optional PixelDiT (PiD) upscale.
 Supported families: Krea 2, Z-Image, Anima, Qwen Image,
-Qwen Image 2.1 (including Turbo), and MOSS-Image.
+Qwen Image 2.1 (including Turbo), MOSS-Image, and MiniMax H3 Image.
 Display/search name: Ultra Image + PiD
 Internal node ID: UltraStandaloneImagePiD
 Outputs: Original Image / PiD Image (upscaled or same as original).
@@ -291,13 +315,32 @@ new workflow for the standalone node.
 
 Model weights are NOT bundled. The diffusion model, text encoder, VAE and
 model_family must match. Dimensions must be multiples of 8; Qwen Image 2.1
-and MOSS-Image require multiples of 16.
+and MOSS-Image require multiples of 16; MiniMax H3 requires multiples of 32.
+
+[MiniMax H3 Image native T2I — v1.0.3]
+  models/diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
+  models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
+  models/vae/minimax_h3_image_vae_fp16.safetensors
+The modern ComfyUI core must expose MiniMaxH3ImageConditioning, whose
+positive conditioning and 5D latent replace the ordinary Empty Latent path.
+First use selects the three installed H3 assets where available, and sets
+2048x2048 / Steps 6 / CFG 1 / euler / simple / denoise 1 / batch 1.
+The first-use suggestion prefers installed int8_convrot weights/encoder over
+BF16; remembered user selections remain authoritative.
+H3 supports official native ~16MP sizes (e.g. 4096x4096) without PiD;
+Width and Height use 32px increments in the frontend and backend.
+Those sampling values are locked; PiD and SageAttention are OFF. Negative
+Prompt is unused but an existing STRING link is never disconnected.
+Positive Prompt cannot be blank in H3. The external prompt enhancer may
+connect to this STRING socket; none is bundled. Model-specific LoRAs may
+be attached. Actual GPU image generation still needs user verification.
 
 4. Prompts and Zero Conditioning
 --------------------------------
 Both Positive Prompt and Negative Prompt are optional STRING sockets.
 - Empty/unconnected Positive: encode empty positive text; the node does NOT
   inject a preset prompt or generate a predetermined default image.
+  Exception: MiniMax H3 Image requires a nonempty Positive Prompt.
 - Zero Conditioning ON (default): ignore connected Negative text completely.
   Krea 2 / Z-Image / Anima / Qwen Image use ConditioningZeroOut.
   Qwen Image 2.1 / MOSS-Image encode empty negative text instead, matching
@@ -352,6 +395,7 @@ You still need the normal VAE for ORIGINAL image generation.
   Z-Image                          pid_flux1_...
   MOSS-Image                       pid_flux2_...
   Qwen Image 2.1 (incl. Turbo)      Unsupported: PiD toggle locked OFF
+  MiniMax H3 Image                 Unsupported: PiD toggle locked OFF
 
 Representative official 4-step BF16 checkpoints:
 
@@ -449,6 +493,8 @@ retain it. Saved workflow widget values are managed independently.
   PiD is disabled for Qwen Image 2.1.
 - MOSS-Image applies its required Skip Layer Guidance automatically.
 - Qwen Image 2.1 and MOSS-Image require widths/heights divisible by 16.
+- MiniMax H3 Image requires 32px multiples and the dedicated minimax CLIP,
+  positive+latent H3 conditioning, six fixed steps and batch size 1.
 - Krea 2 / Anima / Qwen Image share the qwenimage-compatible PiD latent;
   pick the PiD family by the table above, not by generator filename.
 
@@ -465,7 +511,8 @@ retain it. Saved workflow widget values are managed independently.
   check ComfyUI version and startup/runtime console messages.
 - Out-of-memory (OOM): try PiD OFF first, batch 1, smaller source size.
 - SageAttention error: switch OFF or install compatible KJNodes.
-- Negative ignored: switch Zero Conditioning OFF; check model CFG behavior.
+- Negative ignored: switch Zero Conditioning OFF on compatible families;
+  MiniMax H3 always uses zeroed negative conditioning.
 - Locale label not refreshed: set ComfyUI Locale to KO/EN and, if needed,
   hard-refresh the browser to pick up the latest frontend script.
 - Settings not remembered: verify a request was accepted into the queue,

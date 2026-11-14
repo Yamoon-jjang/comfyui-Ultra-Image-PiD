@@ -2,11 +2,11 @@
 ### All-in-One ComfyUI Image Generation & PixelDiT Upscaling
 ### 다양한 이미지 모델 생성 · 모델별 설정 기억 · 선택형 PiD 업스케일
 
-**하나의 ComfyUI 노드로 6개 이미지 모델 계열을 선택해 생성하고, 모델별 설정을 기억하며, 지원되는 계열에서는 PiD(PixelDiT) 업스케일까지 처리합니다.** 모델을 바꿀 때마다 복잡한 생성 노드를 다시 구성할 필요가 없도록 설계한 독립 커스텀 노드입니다.
+**하나의 ComfyUI 노드로 7개 이미지 모델 계열을 선택해 생성하고, 모델별 설정을 기억하며, 지원되는 계열에서는 PiD(PixelDiT) 업스케일까지 처리합니다.** 모델을 바꿀 때마다 복잡한 생성 노드를 다시 구성할 필요가 없도록 설계한 독립 커스텀 노드입니다.
 
-**One standalone ComfyUI node for six image-model families, per-family last-used settings, and optional PixelDiT (PiD) upscaling.** Switch between supported generation families without rebuilding a large model-specific graph each time.
+**One standalone ComfyUI node for seven image-model families, per-family last-used settings, and optional PixelDiT (PiD) upscaling.** Switch between supported generation families without rebuilding a large model-specific graph each time.
 
-**지원 / Supported:** **Krea 2 · Z-Image · Anima · Qwen Image · Qwen Image 2.1 (including Turbo) · MOSS-Image**
+**지원 / Supported:** **Krea 2 · Z-Image · Anima · Qwen Image · Qwen Image 2.1 (including Turbo) · MOSS-Image · MiniMax H3 Image**
 
 > **한국어·영어 UI 자동 연동 / Automatic Korean–English UI:** 노드 제목·입출력 이름·설정 항목 및 노드 전용 UI는 ComfyUI 언어 설정을 따릅니다. 한국어(ko)에서는 한국어, 영어(en)에서는 영어로 표시되며 별도 전환 버튼이 필요 없습니다. / Node labels, inputs/outputs, and its custom UI follow the ComfyUI language preference (KO/EN); no separate language switch is required.
 
@@ -16,7 +16,7 @@
 
 | 핵심 기능 / Highlights | 설명 / What you get |
 | --- | --- |
-| **6개 이미지 모델 계열 / Six model families** | Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1, MOSS-Image |
+| **7개 이미지 모델 계열 / Seven model families** | Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1, MOSS-Image, MiniMax H3 Image |
 | **모델별 설정 기억 / Per-family settings memory** | 모델·VAE·해상도·샘플링·LoRA·PiD 설정을 계열별로 보관 / Restore family-specific generation settings |
 | **한글·영문 자동 UI / Automatic KO–EN UI** | ComfyUI의 언어 설정을 따름 / Follows the ComfyUI locale |
 | **생성 + 업스케일 / Generation + upscaling** | 하나의 노드에서 원본과 선택적 PiD 결과를 출력 / Original and optional PiD outputs |
@@ -31,7 +31,7 @@
 
 **1. 서로 다른 이미지 모델을 한 노드에서 사용**
 
-Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1(Turbo 포함), MOSS-Image의 **6개 계열**을 지원합니다. 사용자는 모델 계열과 해당 확산 모델·텍스트 인코더·VAE를 선택하면 됩니다. 계열에 따른 텍스트 인코딩, latent 종류, 샘플링 경로 등은 노드 내부에서 구분해 처리하므로 모델마다 별도의 복잡한 생성 그래프를 반복해서 구성할 필요가 줄어듭니다.
+Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1(Turbo 포함), MOSS-Image, MiniMax H3 Image의 **7개 계열**을 지원합니다. 사용자는 모델 계열과 해당 확산 모델·텍스트 인코더·VAE를 선택하면 됩니다. 계열에 따른 텍스트 인코딩, latent 종류, 샘플링 경로 등은 노드 내부에서 구분해 처리하므로 모델마다 별도의 복잡한 생성 그래프를 반복해서 구성할 필요가 줄어듭니다.
 
 지원 목록에 없는 모든 이미지 모델까지 자동 호환된다는 뜻은 아닙니다. 실제 사용할 모델 파일과 ComfyUI 코어 기능이 선택한 계열에 맞아야 합니다.
 
@@ -69,6 +69,7 @@ PiD는 단순한 확대가 아니라 세부 내용을 재생성하므로 원본�
 - **Zero Conditioning:** ON이면 모델 계열에 맞는 무조건 conditioning을 사용하며 연결된 Negative 텍스트는 무시합니다. Negative 프롬프트를 적용하려면 OFF로 바꿉니다.
 - **선택적 SageAttention:** 호환되는 KJNodes를 설치한 경우 메인 생성 모델에 적용할 수 있습니다. OFF 상태에서는 KJNodes/SageAttention이 필요하지 않습니다.
 - **모델별 특수 경로:** Qwen Image 2.1 Turbo는 파일명에 Turbo가 포함된 경우 전용 고정 sigma/CFG 1 경로를 사용하며, MOSS-Image에는 필요한 Skip Layer Guidance를 내부 적용합니다.
+- **MiniMax H3 Image:** 전용 `MiniMaxH3ImageConditioning`이 Positive와 5D latent를 함께 생성합니다. Steps 6 / CFG 1 / euler / simple / Denoise 1 / Batch 1 고정, PiD·Negative·SageAttention 비활성화, 첫 사용 2048×2048입니다. 최초 모델 자동 추천은 설치된 경량 `int8_convrot`를 BF16보다 우선하며, 사용자가 저장한 모델 선택은 덮어쓰지 않습니다. 공식 네이티브 약 16MP(4096×4096 등)까지 PiD 없이 생성할 수 있으며 가로·세로는 32픽셀 배수로 입력합니다. 연결된 PiD ON 값이 남아 있으면 조용히 무시하지 않고 실행 전에 차단합니다.
 
 ### 지원 모델 및 PiD 호환성
 
@@ -80,8 +81,9 @@ PiD는 단순한 확대가 아니라 세부 내용을 재생성하므로 원본�
 | **Z-Image** | `pid_flux1_...` | PiD 지원 |
 | **MOSS-Image** | `pid_flux2_...` | PiD 지원; 해상도 16의 배수 |
 | **Qwen Image 2.1 (Turbo 포함)** | — | **원본 이미지 생성 지원, PiD는 OFF로 잠금**; 해상도 16의 배수 |
+| **MiniMax H3 Image** | — | **T2I 생성 지원, PiD OFF 고정**; 해상도 32의 배수, Batch 1 |
 
-Qwen Image 2.1과 MOSS-Image의 가로·세로는 16의 배수여야 합니다. 다른 지원 계열은 최소 8의 배수 기준을 따릅니다. PiD 모델은 **원본 모델 파일명이 아니라 위 호환 계열**에 맞춰 선택해야 합니다.
+Qwen Image 2.1과 MOSS-Image의 가로·세로는 16의 배수, MiniMax H3 Image는 32의 배수여야 합니다. 다른 지원 계열은 최소 8의 배수 기준을 따릅니다. PiD 모델은 **원본 모델 파일명이 아니라 위 호환 계열**에 맞춰 선택해야 합니다.
 
 ### 빠른 시작
 
@@ -92,6 +94,15 @@ Qwen Image 2.1과 MOSS-Image의 가로·세로는 16의 배수여야 합니다. 
 5. **Queue Prompt**를 실행합니다. 정상 큐 접수 이후 해당 모델 계열의 마지막 설정이 기억됩니다. PiD를 사용하려면 아래의 전용 파일을 설치하고 PiD ON으로 전환합니다.
 
 원본과 PiD 결과는 각각 `IMAGE` 출력이므로 실제 파일 저장에는 일반적인 ComfyUI `Save Image` 노드를 연결하세요.
+
+### MiniMax H3 Image 모델 준비 및 제한
+
+- Diffusion: `minimax_h3_image_pruned_int8_convrot.safetensors` → `models/diffusion_models/`
+- Text Encoder: `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` → `models/text_encoders/`
+- VAE: `minimax_h3_image_vae_fp16.safetensors` → `models/vae/`
+- 공식 파일: [MiniMax H3 Image 모델·VAE](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) / [MiniMax H3 인코더](https://huggingface.co/Comfy-Org/MiniMax-H3)
+
+MiniMax는 **빈 긍정 프롬프트를 허용하지 않으며**, 첫 선택 시 위 세 파일을 자동 추천합니다. Negative STRING 단자를 연결해 두어도 이 계열에서 사용하지 않고 연결 자체는 유지합니다. 공식 프롬프트 확장기는 외부 STRING 노드로 별도 연결할 수 있으며, 이 AIO가 확장기 가중치를 자동으로 로드하지는 않습니다. MiniMax의 모델 크기가 커서 이 계열은 별도의 RAM 자산 재사용을 하지 않습니다. 다른 계열로 돌아가면 저장한 설정을 복원합니다.
 
 ### PiD 사용 전 준비
 
@@ -112,11 +123,11 @@ Gemma ELM은 `gemma_2_2b_it_elm_fp8_scaled.safetensors` 또는 `gemma_2_2b_it_el
 
 ### Why use Ultra Image + PiD?
 
-**1. One node for six different image-model families**
+**1. One node for seven different image-model families**
 
-Work with **Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1 (including Turbo), and MOSS-Image** in a single standalone node. Choose the model family and its corresponding diffusion checkpoint, text encoder, and VAE. The node routes model-specific text encoding, latent creation, and sampling internally, reducing the need to build and maintain separate generation graphs for each supported family.
+Work with **Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1 (including Turbo), MOSS-Image, and MiniMax H3 Image** in a single standalone node. Choose the model family and its corresponding diffusion checkpoint, text encoder, and VAE. The node routes model-specific text encoding, latent creation, and sampling internally, reducing the need to build and maintain separate generation graphs for each supported family.
 
-This is support for the **six listed families**, not a claim that every diffusion model or checkpoint is universally compatible. A sufficiently recent ComfyUI core and correctly matched model assets are still required.
+This is support for the **seven listed families**, not a claim that every diffusion model or checkpoint is universally compatible. A sufficiently recent ComfyUI core and correctly matched model assets are still required.
 
 **2. Remember the last-used settings separately for each model family**
 
@@ -152,6 +163,7 @@ PixelDiT can reconstruct or change fine details rather than simply resizing pixe
 - **Zero Conditioning:** ON uses the appropriate unconditional path for the selected model family and ignores the Negative input; turn it OFF to encode a provided Negative prompt.
 - **Optional SageAttention:** can apply KJNodes Patch Sage Attention to the main generation model when installed. With the switch OFF, **KJNodes is not required**.
 - **Specialized model handling:** Qwen Image 2.1 models whose filenames identify them as Turbo use their fixed-sigma/CFG 1 route; MOSS-Image receives its required Skip Layer Guidance.
+- **MiniMax H3 Image:** native conditioning supplies both positive conditioning and a 5D latent. Steps=6, CFG=1, euler/simple, denoise=1, batch=1; PiD/negative guidance/SageAttention are disabled for this family.
 
 ### Model and PiD compatibility
 
@@ -163,8 +175,9 @@ PixelDiT can reconstruct or change fine details rather than simply resizing pixe
 | **Z-Image** | `pid_flux1_...` | Generation + PiD |
 | **MOSS-Image** | `pid_flux2_...` | Generation + PiD; dimensions divisible by 16 |
 | **Qwen Image 2.1 (including Turbo)** | — | **Generation supported; PiD locked OFF**; dimensions divisible by 16 |
+| **MiniMax H3 Image** | — | **T2I generation; PiD locked OFF**, dimensions divisible by 32, batch 1 |
 
-Both dimensions must be multiples of **16** for Qwen Image 2.1 and MOSS-Image; the other supported families use a minimum multiple of **8**. Select your PiD model by the compatible **latent/PiD family**, not merely by the name of the original generator checkpoint.
+Both dimensions must be multiples of **16** for Qwen Image 2.1 and MOSS-Image, **32** for MiniMax H3 Image; the other supported families use a minimum multiple of **8**. Select your PiD model by the compatible **latent/PiD family**, not merely by the name of the original generator checkpoint.
 
 ### Quick start
 
@@ -175,6 +188,10 @@ Both dimensions must be multiples of **16** for Qwen Image 2.1 and MOSS-Image; t
 5. Submit **Queue Prompt**. After the queue accepts it, the last-used settings for that family are recorded. To upscale, install the additional PiD assets and enable PiD.
 
 Connect either `IMAGE` output to a normal ComfyUI `Save Image` node to write an image file.
+
+### MiniMax H3 Image setup
+
+Install the native [MiniMax H3 Image diffusion model and VAE](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) and the [MiniMax H3 Qwen3-VL encoder](https://huggingface.co/Comfy-Org/MiniMax-H3). Suggested filenames are `minimax_h3_image_pruned_int8_convrot.safetensors`, `qwen3vl_32b_minimax_h3_int8_convrot.safetensors`, and `minimax_h3_image_vae_fp16.safetensors`. Place them under their respective ComfyUI model folders. First use defaults to 2048×2048, six steps, CFG 1, euler/simple and batch 1; PiD, negative guidance and SageAttention are locked off. The external Positive Prompt STRING may come from a separate prompt enhancer; this AIO does not bundle one. MiniMax skips the node's private RAM asset reuse. Its prompt must not be empty.
 
 ### PiD prerequisites
 

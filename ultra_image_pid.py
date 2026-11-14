@@ -32,7 +32,7 @@ from .ultra_prompt_record import record_prompt, register as register_prompt_reco
 MAX_RESOLUTION = 16384
 MAX_SEED = 0xFFFFFFFFFFFFFFFF
 MAX_LORA_STRENGTH = 100.0
-MODEL_FAMILIES = ("Krea 2", "Z-Image", "Anima", "Qwen Image", "Qwen Image 2.1", "MOSS-Image")
+MODEL_FAMILIES = ("Krea 2", "Z-Image", "Anima", "Qwen Image", "Qwen Image 2.1", "MOSS-Image", "MiniMax H3 Image")
 PID_UPSCALE_OFF = "off"
 PID_UPSCALE_ON = "on"
 DEFAULT_WEIGHT_DTYPE = "default"
@@ -82,6 +82,12 @@ LATENT_SPACES = {
     "qwen21": {
         "label": "Qwen-Image 2.1 latent (64ch / 16x)",
         # No released PiD checkpoint and no PiD checkpoint exists for it.
+        "pid_checkpoint_token": None,
+        "pid_latent_format": None,
+        "pid_checkpoint_exclude": (),
+    },
+    "minimax_h3": {
+        "label": "MiniMax H3 Image latent (24ch / 16x / 5D)",
         "pid_checkpoint_token": None,
         "pid_latent_format": None,
         "pid_checkpoint_exclude": (),
@@ -296,7 +302,47 @@ MODEL_CONTRACTS = {
             "end_percent": 0.5,
         },
     },
+    "MiniMax H3 Image": {
+        "clip_type": "minimax",
+        "latent_space": "minimax_h3",
+        "text_encode": "minimax_h3_image",
+        # Native conditioning supplies BOTH positive and 5D latent.
+        "latent_node": None,
+        "model_sampling_class": None,
+        "model_sampling_shift": None,
+        "resolution_multiple": 32,
+    },
 }
+
+
+def _validate_minimax_h3_settings(
+    diffusion_model, text_encoder, vae_name, prompt, batch_size, steps,
+    cfg, sampler_name, scheduler, denoise, zero_conditioning, sage_attention,
+):
+    """Reject stale/linked values before loading the large H3 model assets."""
+    required = (
+        (int(batch_size) == 1, "Batch Size는 1이어야 합니다."),
+        (int(steps) == 6, "Steps는 6으로 고정됩니다."),
+        (float(cfg) == 1.0, "CFG는 1.0으로 고정됩니다."),
+        (sampler_name == "euler", "Sampler는 euler로 고정됩니다."),
+        (scheduler == "simple", "Scheduler는 simple로 고정됩니다."),
+        (float(denoise) == 1.0, "Denoise는 1.0으로 고정됩니다."),
+        (zero_conditioning is True, "Zero Conditioning은 ON이어야 합니다."),
+        (sage_attention is False, "MiniMax H3 Image의 SageAttention은 아직 검증되지 않아 OFF로 고정됩니다."),
+        (bool(prompt.strip()), "Positive Prompt가 비어 있습니다."),
+    )
+    for valid, message in required:
+        if not valid:
+            raise ValueError("MiniMax H3 Image: " + message)
+    model = str(diffusion_model).replace("\\", "/").split("/")[-1].lower()
+    encoder = str(text_encoder).replace("\\", "/").split("/")[-1].lower()
+    vae = str(vae_name).replace("\\", "/").split("/")[-1].lower()
+    if "minimax" not in model or "h3" not in model or "image" not in model:
+        raise ValueError("MiniMax H3 Image: H3 Image 확산 체크포인트를 선택하세요.")
+    if not re.search(r"qwen3[._-]?vl.*minimax[._-]?h3", encoder):
+        raise ValueError("MiniMax H3 Image: 전용 Qwen3-VL MiniMax H3 텍스트 인코더를 선택하세요.")
+    if not re.search(r"minimax[._-]?h3[._-]?image.*vae", vae):
+        raise ValueError("MiniMax H3 Image: 전용 H3 Image VAE를 선택하세요.")
 
 
 def _family_contract(model_family: str) -> dict:
@@ -1087,7 +1133,7 @@ class UltraImagePiD:
     OUTPUT_NODE = False
     DESCRIPTION = (
         "All-in-one image generator with optional Positive/Negative STRING inputs; "
-        "Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1 and MOSS-Image. "
+        "Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1, MOSS-Image and MiniMax H3 Image. "
         "optionally applies KJ SageAttention to the main MODEL and/or an integrated PiD upscale stage, "
         "and returns the original IMAGE plus a PiD IMAGE output. PiD denoise is internally fixed at "
         "1.0; PiD output color matching uses reinhard_lab/per_frame/1.0 automatically."
@@ -1216,8 +1262,9 @@ class UltraImagePiD:
     def _resolve_clip_type(self, contract: dict) -> str:
         return str(contract["clip_type"])
 
-    def _resolve_latent_node(self, contract: dict) -> str:
-        return str(contract["latent_node"])
+    def _resolve_latent_node(self, contract: dict) -> Optional[str]:
+        value = contract.get("latent_node")
+        return str(value) if value is not None else None
 
     def _resolve_model_sampling(self, contract: dict) -> Tuple[Optional[str], Optional[float]]:
         sampling_class = contract.get("model_sampling_class")
@@ -1234,7 +1281,7 @@ class UltraImagePiD:
         sampler_name: str,
         scheduler: str,
         zero_conditioning: bool,
-        latent_node_name: str,
+        latent_node_name: Optional[str],
         model_sampling_class: Optional[str],
         lora_rows,
         resolved_clip_type: str,
@@ -1261,7 +1308,11 @@ class UltraImagePiD:
             latent_node_name,
             "KSampler",
         ):
-            _node_class(required_class)
+            if required_class:
+                _node_class(required_class)
+        if text_encode == "minimax_h3_image":
+            _modern_node_class("MiniMaxH3ImageConditioning", "comfy_extras.nodes_minimax_h3", "MiniMaxH3ImageConditioning")
+            _node_class("ConditioningZeroOut")
         if turbo_sampling:
             for name in ("ManualSigmas", "KSamplerSelect", "RandomNoise", "CFGGuider", "SamplerCustomAdvanced"):
                 _modern_node_class(name, "comfy_extras.nodes_custom_sampler", name)
@@ -1546,6 +1597,15 @@ class UltraImagePiD:
             height = _normalize_resolution_dimension(height, "height")
             _require_family_resolution_multiple(model_family, width, "width")
             _require_family_resolution_multiple(model_family, height, "height")
+            if model_family == "MiniMax H3 Image":
+                if pid_enabled:
+                    # A stale linked/widget value must not claim that the
+                    # second output was upscaled while silently bypassing PiD.
+                    raise ValueError("MiniMax H3 Image는 PiD 미지원입니다. PiD 업스케일을 OFF로 설정하세요.")
+                _validate_minimax_h3_settings(
+                    diffusion_model, text_encoder, vae_name, prompt, batch_size, steps,
+                    cfg, sampler_name, scheduler, denoise, zero_conditioning, sage_attention,
+                )
             lora_rows = _collect_lora_rows(lora_values)
             self._validate_configuration(
                 diffusion_model,
@@ -1657,30 +1717,42 @@ class UltraImagePiD:
                 end_percent=float(slg.get("end_percent", 1)),
             )[0]
 
-        positive, negative = self._encode_conditioning(
-            contract, clip, prompt, zero_conditioning, negative_prompt, model_family
-        )
-
-        try:
-            latent = _call_core_node(
-                latent_node_name,
-                width=width,
-                height=height,
-                batch_size=batch_size,
-            )[0]
-        except Exception as exc:
-            raise RuntimeError(
-                _error_message(
-                    "latent 생성 실패",
-                    [
-                        "선택한 모델 계열: {}".format(model_family),
-                        "요구 latent 노드: {}".format(latent_node_name),
-                        "해상도: {} × {}".format(width, height),
-                        "batch_size: {}".format(batch_size),
-                    ],
-                    exc,
+        if contract.get("text_encode") == "minimax_h3_image":
+            try:
+                positive, latent = _call_modern_core_node(
+                    "MiniMaxH3ImageConditioning", "comfy_extras.nodes_minimax_h3", "MiniMaxH3ImageConditioning",
+                    clip=clip, prompt=prompt, width=width, height=height,
                 )
-            ) from exc
+                negative = _call_core_node("ConditioningZeroOut", conditioning=positive)[0]
+            except Exception as exc:
+                raise RuntimeError(_error_message("MiniMax H3 Conditioning / latent 생성 실패", [
+                    "전용 MiniMaxH3ImageConditioning 실행과 5D latent 출력을 확인하십시오.",
+                    "해상도: {} × {}".format(width, height),
+                ], exc)) from exc
+        else:
+            positive, negative = self._encode_conditioning(
+                contract, clip, prompt, zero_conditioning, negative_prompt, model_family
+            )
+            try:
+                latent = _call_core_node(
+                    latent_node_name,
+                    width=width,
+                    height=height,
+                    batch_size=batch_size,
+                )[0]
+            except Exception as exc:
+                raise RuntimeError(
+                    _error_message(
+                        "latent 생성 실패",
+                        [
+                            "선택한 모델 계열: {}".format(model_family),
+                            "요구 latent 노드: {}".format(latent_node_name),
+                            "해상도: {} × {}".format(width, height),
+                            "batch_size: {}".format(batch_size),
+                        ],
+                        exc,
+                    )
+                ) from exc
 
         if turbo_sigmas:
             try:
@@ -1731,7 +1803,7 @@ class UltraImagePiD:
         record_prompt(
             extra_pnginfo, unique_id, "UltraStandaloneImagePiD",
             positive=prompt,
-            negative=None if zero_conditioning else negative_prompt,
+            negative=None if zero_conditioning or model_family == "MiniMax H3 Image" else negative_prompt,
             positive_input=None,
             zero_conditioning=zero_conditioning,
         )

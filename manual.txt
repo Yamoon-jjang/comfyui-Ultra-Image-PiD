@@ -1,5 +1,5 @@
 ﻿Ultra Image + PiD — 사용 설명서 / USER MANUAL
-버전 / Version: 1.0.4
+버전 / Version: 1.0.5
 한국어 안내 (English guide follows below)
 ============================================================
 
@@ -51,7 +51,7 @@ VAE가 서로 호환되어야 합니다. 해상도는 최소 8의 배수여야 �
 Qwen Image 2.1과 MOSS-Image는 16의 배수,
 MiniMax H3 Image는 32의 배수가 필요합니다.
 
-[MiniMax H3 Image 공식 T2I 경로 — v1.0.4]
+[MiniMax H3 Image 네이티브 T2I 경로]
   diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
   text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
   vae/minimax_h3_image_vae_fp16.safetensors
@@ -60,7 +60,14 @@ MiniMax H3 Image는 32의 배수가 필요합니다.
   이 전용 노드가 Positive Conditioning과 5D latent를 함께 생성하며,
   일반 Empty Latent 생성 경로는 사용하지 않습니다.
   첫 선택에서 2048×2048, Steps 6, CFG 1, euler/simple, Denoise 1,
-  Batch Size 1, Zero Conditioning ON이 자동 설정·잠금됩니다.
+  Batch Size 1을 초기 설정합니다.
+  공식 6스텝의 시그마는 모델 체크포인트 내부 pdd_sigmas에서 계산됩니다.
+  Steps 6 / Euler / Scheduler simple이 공식 권장 기본값입니다.
+  Steps·Sampler·Scheduler는 사용자가 변경할 수 있습니다.
+  다른 스텝 수는 H3 모델 샘플러가 체크포인트의 격자를 보간하여
+  실행하므로 실험적이며 품질이 보장되지는 않습니다.
+  CFG 1, Denoise 1, Batch 1은 H3에서만 내부 고정됩니다.
+  직접 만든 고정 숫자 시그마를 삽입하지 않습니다.
   최초 자동 추천에서는 경량 int8_convrot 모델/인코더가 설치되어 있으면
   BF16보다 우선 선택합니다. 기존에 저장된 모델 선택은 유지합니다.
   공식 4096×4096 등 약 16MP 네이티브 해상도를 PiD 없이 지원합니다.
@@ -69,8 +76,13 @@ MiniMax H3 Image는 32의 배수가 필요합니다.
   전달하더라도 실제 H3 실행 전 가장 가까운 32배수로 자동 보정합니다.
   예: 가로 1680 → 1696. 다른 모델의 원래 설정·기억값은 바꾸지 않습니다.
   숫자가 아니거나 허용 범위(64~16384)를 벗어난 값은 오류로 처리합니다.
-  Negative STRING 연결은 유지하되 적용하지 않고 PiD와 SageAttention은
-  OFF로 고정합니다. 모델 전용 LoRA는 선택적으로 사용할 수 있습니다.
+  Negative STRING 연결은 유지하되 H3에서는 적용하지 않습니다.
+  사용자 Zero Conditioning 설정과 빈 이미지 보조 비전 토큰은 H3 생성에
+  적용하지 않습니다. 다만 CFG++ 샘플러가 CFG 1에서도 무조건 분기를
+  계산하므로 내부적으로 positive의 ConditioningZeroOut을 제공합니다.
+  SageAttention과 PiD는 H3에서 내부 OFF로 고정하며
+  해당 미사용 옵션만 숨깁니다. 다른 모델에는 영향이 없습니다.
+  모델 전용 LoRA는 선택적으로 사용할 수 있습니다.
   빈 긍정 프롬프트는 오류입니다. 외부 LLM/프롬프트 확장기의 STRING
   출력을 Positive에 연결할 수 있지만 확장기를 자체 내장하지는 않습니다.
   GPU 품질·VRAM 호환성은 사용자의 환경에서 직접 확인해야 합니다.
@@ -91,6 +103,9 @@ Positive Prompt와 Negative Prompt는 모두 선택형 STRING 입력 소켓입�
 이 설정은 원본 이미지 생성에만 적용됩니다. PiD의 Negative와 CFG는
 노드 내부에서 별도로 처리됩니다. CFG 1에서는 모델/샘플러에 따라
 Negative Prompt가 출력에 거의 영향을 주지 않을 수 있습니다.
+MiniMax H3 Image에서 사용자 Negative 텍스트와 Zero Conditioning 값은
+반영되지 않습니다. 기본 Euler는 CFG 1에서 부정 계산을 건너뛰지만,
+CFG++ 샘플러에는 내부의 0 컨디셔닝이 전달됩니다.
 
 [실제 프롬프트 기록 — v1.0.2]
 Positive/Negative는 연결선으로만 들어오므로 예전에는 실제 문장이 이미지에
@@ -153,10 +168,10 @@ PiD ON 전에 필요한 파일 두 종류:
     pid_flux2_1024_to_4096_4step_bf16.safetensors
     또는 pid_1.5_flux2_1024_to_4096_4step_bf16.safetensors
 
-※ 위 v1.5 파일도 공식 페이지에 존재하지만, 이 독립 노드에서 각 파일의
-   실제 GPU 품질·호환성 검증이 완료된 것은 아닙니다. 처음에는 v1의
-   4step BF16 파일을 권장합니다. 단순한 파일명 일치만으로 호환성을
-   100% 보장할 수 없습니다. INT8/FP8/비4-step 변형도 별도 확인 후 사용하세요.
+※ v1.5 파일의 화질과 호환성은 모델·환경 조합에 따라 달라질 수 있습니다.
+   처음에는 v1의 4step BF16 파일을 권장합니다. 단순한 파일명 일치만으로
+   호환성을 100% 보장할 수 없습니다. INT8/FP8/비4-step 변형도
+   각 환경에서 확인한 뒤 사용하세요.
 ※ '512_to_2048'은 대략 512px 입력→4배, '1024_to_4096'은 대략
    1024px 입력→4배 목적의 모델입니다. 기본 생성 해상도 1152×896처럼
    약 1메가픽셀인 경우 보통 1024_to_4096 계열을 먼저 시도합니다.
@@ -262,11 +277,8 @@ Krea 2에서 생성한 뒤 Z-Image로 바꾸고 생성하면 두 계열의 마�
 가중치는 ZIP에 포함되지 않으며, 각 모델의 라이선스를 별도 확인하세요.
 PiD 공식 모델 페이지는 NSCLv1 등 모델별 사용 조건을 안내합니다.
 이 노드는 최신 ComfyUI 코어의 PiD, Qwen Image 2.1, MOSS 관련 노드가
-필요할 수 있습니다. Python/JavaScript 구문·모의 회귀 검증과 실제
-CUDA/GPU 모델 생성 검증은 다릅니다. 모든 환경에서 성공을 보장하지
-않으므로 실제 사용하는 모델을 먼저 시험해 주세요.
-이 독립 패키지를 준비하면서 기존 comfyui-Ultra-Tools 저장소/릴리즈는
-수정하지 않았습니다.
+필요할 수 있습니다. 실제 실행 속도·화질·메모리 사용량은 모델과
+GPU 환경에 따라 달라지므로, 사용하는 모델 조합을 먼저 확인해 주세요.
 
 
 ENGLISH USER GUIDE
@@ -320,7 +332,7 @@ Model weights are NOT bundled. The diffusion model, text encoder, VAE and
 model_family must match. Dimensions must be multiples of 8; Qwen Image 2.1
 and MOSS-Image require multiples of 16; MiniMax H3 requires multiples of 32.
 
-[MiniMax H3 Image native T2I — v1.0.4]
+[MiniMax H3 Image native T2I]
   models/diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
   models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
   models/vae/minimax_h3_image_vae_fp16.safetensors
@@ -336,8 +348,18 @@ saved/typed dimensions and connected 8/16px-grid selector values are aligned
 to the nearest 32px multiple (1680 becomes 1696). Other model families and
 their remembered settings are unchanged. Invalid or out-of-range inputs
 still produce an error instead of being silently accepted.
-Those sampling values are locked; PiD and SageAttention are OFF. Negative
-Prompt is unused but an existing STRING link is never disconnected.
+The official six-step sigma schedule comes from the loaded checkpoint's
+`pdd_sigmas` via ComfyUI's native H3 model sampler. Six steps with Euler
+and Scheduler `simple` are recommended on first use, but Steps / Sampler /
+Scheduler remain user-editable. Alternate settings are experimental; with
+different step counts the native H3 sampler interpolates the PDD grid.
+CFG 1, Denoise 1 and Batch 1 are fixed only for H3; SageAttention and PiD
+remain OFF. No substitute sigma numbers are hard-coded. The previous
+nonofficial blank-picture vision-token assist has been removed. H3 ignores
+user negative text/Zero Conditioning, but internally supplies zeroed positive
+conditioning for CFG++ samplers that calculate an unconditional pass at CFG 1.
+Other families are unaffected.
+Negative Prompt is unused but an existing STRING link is never disconnected.
 Positive Prompt cannot be blank in H3. The external prompt enhancer may
 connect to this STRING socket; none is bundled. Model-specific LoRAs may
 be attached. Actual GPU image generation still needs user verification.
@@ -501,7 +523,11 @@ retain it. Saved workflow widget values are managed independently.
 - MOSS-Image applies its required Skip Layer Guidance automatically.
 - Qwen Image 2.1 and MOSS-Image require widths/heights divisible by 16.
 - MiniMax H3 Image requires 32px multiples and the dedicated minimax CLIP,
-  positive+latent H3 conditioning, six fixed steps and batch size 1.
+  positive+latent H3 conditioning. Six Euler/simple steps use checkpoint PDD
+  values; other editable step/sampler/scheduler settings are experimental.
+  CFG 1, denoise 1 and batch size 1 remain fixed; SageAttention and PiD OFF.
+  No blank-image assist or user negative prompt is used for H3; internal
+  zeroed conditioning is supplied for CFG++ sampler compatibility.
 - Krea 2 / Anima / Qwen Image share the qwenimage-compatible PiD latent;
   pick the PiD family by the table above, not by generator filename.
 
@@ -519,7 +545,8 @@ retain it. Saved workflow widget values are managed independently.
 - Out-of-memory (OOM): try PiD OFF first, batch 1, smaller source size.
 - SageAttention error: switch OFF or install compatible KJNodes.
 - Negative ignored: switch Zero Conditioning OFF on compatible families;
-  MiniMax H3 always uses zeroed negative conditioning.
+  MiniMax H3 ignores user negative text and the Zero Conditioning control;
+  internal ConditioningZeroOut(positive) supports CFG++ samplers at CFG 1.
 - Locale label not refreshed: set ComfyUI Locale to KO/EN and, if needed,
   hard-refresh the browser to pick up the latest frontend script.
 - Settings not remembered: verify a request was accepted into the queue,
@@ -532,7 +559,5 @@ text-encoder, VAE and PiD model weights are NOT redistributed inside the
 ZIP; review their separate licenses (the official PiD repository lists
 NSCLv1 model terms). Recent ComfyUI core support is required for the
 model-specific PiD/Qwen Image 2.1/MOSS feature set.
-Syntax and simulated regression testing do NOT prove successful CUDA/GPU
-runs for every model; test your actual installed models before production
-use. Preparing this standalone ZIP does NOT modify the original
-comfyui-Ultra-Tools GitHub repository or releases.
+Actual speed, image quality, and memory usage depend on the selected
+models and GPU environment. Confirm compatibility with your setup.

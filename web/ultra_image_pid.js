@@ -60,9 +60,26 @@ const PID_SCHEDULER_WIDGET = "pid_scheduler";
 const PID_DEGRADE_SIGMA_WIDGET = "pid_degrade_sigma";
 const PID_OUTPUT_SCALE_WIDGET = "pid_output_scale";
 const MINIMAX_FAMILY = "MiniMax H3 Image";
-const MINIMAX_FIXED = {
+// First-selection recommendations. Other step/sampler/scheduler choices remain editable.
+const MINIMAX_FIRST_USE_DEFAULTS = {
   batch_size: 1, steps: 6, cfg: 1, sampler_name: "euler", scheduler: "simple",
   denoise: 1, zero_conditioning: true, sage_attention: false, pid_upscale: false,
+};
+// Only H3-inapplicable controls are locked in both frontend and Python.
+const MINIMAX_REQUIRED = {
+  batch_size: 1, cfg: 1, denoise: 1, sage_attention: false, pid_upscale: false,
+};
+const MINIMAX_INACTIVE_WIDGETS = [
+  "batch_size", "cfg", "denoise",
+  "zero_conditioning", "pid_upscale", "sage_attention",
+];
+const MINIMAX_SAMPLING_TOOLTIPS = {
+  steps: ["6 steps with Euler/simple follow the checkpoint's native PDD sigma grid. Other step counts use ComfyUI's native H3 grid interpolation (experimental).", "Euler/simple 6스텝은 체크포인트의 네이티브 PDD 격자를 따릅니다. 다른 스텝 수는 ComfyUI가 H3 격자를 보간해 샘플링합니다(실험적)."],
+  cfg: ["Fixed at CFG 1.0 for H3's distilled no-guidance path.", "H3의 증류된 무가이던스 경로를 위해 CFG 1.0으로 고정합니다."],
+  sampler_name: ["Euler is recommended for the native six-step PDD path. Other samplers are experimental.", "네이티브 6스텝 PDD 경로에는 Euler를 권장합니다. 다른 샘플러는 실험적입니다."],
+  scheduler: ["simple at 6 steps follows the checkpoint PDD grid. Other schedules run through native H3 sampling experimentally.", "6스텝 simple은 체크포인트 PDD 격자를 따릅니다. 다른 스케줄러도 네이티브 H3 경로에서 실험적으로 실행됩니다."],
+  denoise: ["Fixed at 1.0 so H3 sampling uses the full native sigma range for the selected steps and schedule.", "선택한 스텝·스케줄에서 H3의 전체 네이티브 시그마 범위를 사용하도록 1.0으로 고정합니다."],
+  sage_attention: ["Disabled for H3 Image; no SageAttention patch is applied.", "H3 Image에서는 사용하지 않으며 SageAttention 패치를 적용하지 않습니다."],
 };
 const MINIMAX_ASSETS = {
   diffusion_model: /minimax.*h3.*image/i,
@@ -217,6 +234,7 @@ const INPUT_LABELS = {
 // Locale changes affect only visible text, never canonical widget/slot names or values.
 function localizeNode(node) {
   if (!isOurNode(node)) return;
+  const minimax = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY;
   for (const input of node.inputs || []) {
     const labels = INPUT_LABELS[input.name];
     if (labels) input.label = tr(...labels);
@@ -225,6 +243,15 @@ function localizeNode(node) {
     }
   }
   for (const widget of node.widgets || []) {
+    if (widget.name === "model_family") {
+      if (!Object.hasOwn(widget, "__ultraOriginalFamilyTooltip")) {
+        widget.__ultraOriginalFamilyTooltip = widget.tooltip;
+      }
+      widget.tooltip = minimax
+        ? tr("MiniMax H3 Image: Euler/simple/6 uses the official PDD grid; alternate sampling is experimental. CFG 1, Denoise 1, Batch 1, SageAttention OFF and PiD OFF are enforced. No blank-image reference or user Negative Prompt/Zero Conditioning setting is applied; internal ConditioningZeroOut(positive) supports CFG++ samplers.",
+             "MiniMax H3 Image: Euler/simple/6은 공식 PDD 격자, 다른 샘플링 설정은 실험적입니다. CFG 1·Denoise 1·Batch 1·SageAttention OFF·PiD OFF를 유지합니다. 빈 이미지 참조와 사용자 Negative Prompt/Zero Conditioning 설정은 적용하지 않으며, CFG++ 샘플러를 위해 내부 ConditioningZeroOut(positive)를 제공합니다.")
+        : widget.__ultraOriginalFamilyTooltip;
+    }
     const labels = WIDGET_LABELS[widget.name];
     if (labels) widget.label = tr(...labels);
     if (widget.name === "width" || widget.name === "height") {
@@ -233,6 +260,13 @@ function localizeNode(node) {
       }
       widget.tooltip = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY
         ? tr(...MINIMAX_NATIVE_SIZE_TOOLTIP) : widget.__ultraOriginalSizeTooltip;
+    }
+    if (Object.hasOwn(MINIMAX_SAMPLING_TOOLTIPS, widget.name)) {
+      if (!Object.hasOwn(widget, "__ultraOriginalSamplingTooltip")) {
+        widget.__ultraOriginalSamplingTooltip = widget.tooltip;
+      }
+      widget.tooltip = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY
+        ? tr(...MINIMAX_SAMPLING_TOOLTIPS[widget.name]) : widget.__ultraOriginalSamplingTooltip;
     }
   }
   const pid = findWidget(node, PID_ENABLE_WIDGET);
@@ -626,7 +660,7 @@ function pidSpecForFamily(family) {
 }
 
 function applyMiniMaxFirstUse(node) {
-  for (const [name, value] of Object.entries({ width: 2048, height: 2048, ...MINIMAX_FIXED })) {
+  for (const [name, value] of Object.entries({ width: 2048, height: 2048, ...MINIMAX_FIRST_USE_DEFAULTS })) {
     setWidgetValue(node, findWidget(node, name), value);
   }
   const missing = [];
@@ -693,8 +727,24 @@ function attachMiniMaxSizeHook(node, target) {
   target.__ultraMiniMaxSizeHook = true;
 }
 
+function attachMiniMaxSamplingHooks(node) {
+  for (const name of ["steps", "sampler_name", "scheduler"]) {
+    const target = findWidget(node, name);
+    if (!target || target.__ultraMiniMaxSamplingHook) continue;
+    const previous = typeof target.callback === "function" ? target.callback : null;
+    target.callback = function ultraMiniMaxSamplingCallback(value, ...args) {
+      const result = previous?.call(this, value, ...args);
+      syncMiniMaxControls(node);
+      localizeNode(node);
+      return result;
+    };
+    target.__ultraMiniMaxSamplingHook = true;
+  }
+}
+
 function syncMiniMaxControls(node) {
   const minimax = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY;
+  attachMiniMaxSamplingHooks(node);
   // Native H3 Conditioning requires 32px-aligned dimensions. The legacy
   // generators retain their existing 16px drag/keyboard increment.
   for (const name of ["width", "height"]) {
@@ -709,13 +759,20 @@ function syncMiniMaxControls(node) {
       if (minimax) snapMiniMaxSizeWidget(node, target);
     }
   }
-  for (const [name, value] of Object.entries(MINIMAX_FIXED)) {
+  for (const name of Object.keys(MINIMAX_FIRST_USE_DEFAULTS)) {
     const target = findWidget(node, name);
     if (!target) continue;
-    if (minimax) target.value = value;
-    // PiD receives its own support lock, all other controls are available again.
-    if (name !== PID_ENABLE_WIDGET) target.disabled = minimax;
+    if (minimax && Object.hasOwn(MINIMAX_REQUIRED, name)) {
+      target.value = MINIMAX_REQUIRED[name];
+    }
+    // Visibility owns the disabled state. Setting it here first would make
+    // the widget remember a locked H3 value as its ordinary-family baseline.
   }
+  for (const name of MINIMAX_INACTIVE_WIDGETS) {
+    setWidgetVisible(findWidget(node, name), !minimax);
+  }
+  // Restoring the ordinary PiD row must not unlock unsupported non-H3 families.
+  syncPidSupportLock(node);
   for (const slot of node.inputs || []) {
     if (slot.name === "negative_prompt") {
       slot.label = minimax ? tr("Negative Prompt (unused)", "부정 프롬프트 (미사용)")
@@ -1035,7 +1092,7 @@ async function applyStoredSettingsForFamily(node, family, restoreToken, { restor
       applyMiniMaxFirstUse(node);
     } else if (node.__ultraLastFamilyWasMiniMax) {
       // Only the new H3 route changes legacy first-use behavior. Avoid
-      // carrying H3's fixed dimensions/sampler into a never-used family.
+      // carrying H3's recommended dimensions/sampler into a never-used family.
       for (const [name, value] of Object.entries({
         width: 1152, height: 896, batch_size: 1, steps: 10, cfg: 1,
         sampler_name: "euler", scheduler: "simple", denoise: 1,
@@ -1673,6 +1730,18 @@ function parseDynamicValues(values) {
   return [];
 }
 
+// Some older saved workflows have three retired blank-assist widgets
+// immediately after the regular widget block. Drop ONLY that typed triple,
+// leaving all LoRA row objects and old pre-assist workflows untouched.
+function normalizeH3LegacyWidgetValues(savedValues, standardCount) {
+  if (!Array.isArray(savedValues) || savedValues.length < standardCount + 3) return savedValues;
+  const triple = savedValues.slice(standardCount, standardCount + 3);
+  if (typeof triple[0] !== "boolean" || !triple.slice(1).every((x) => typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 1)) {
+    return savedValues;
+  }
+  return [...savedValues.slice(0, standardCount), ...savedValues.slice(standardCount + 3)];
+}
+
 
 function cancelNewNodeSettingsRestore(node) {
   // Cancel both the scheduled callback and any already-running asynchronous
@@ -1735,11 +1804,12 @@ app.registerExtension({
       const savedValues = Array.isArray(info?.widgets_values) ? info.widgets_values : [];
       removeDynamicWidgets(this);
       const standardCount = this.widgets?.filter((widget) => widget?.serialize !== false).length || 0;
+      const normalizedValues = normalizeH3LegacyWidgetValues(savedValues, standardCount);
 
       try {
         // The core restores standard widgets and node geometry. Dynamic LoRA
         // rows are independent widgets appended after core configuration.
-        const baseInfo = { ...info, widgets_values: savedValues.slice(0, standardCount) };
+        const baseInfo = { ...info, widgets_values: normalizedValues.slice(0, standardCount) };
         const result = originalConfigure?.call(this, baseInfo);
         attachPidVisibilityHook(this);
         syncPidModelOptions(this, getWidgetValue(this, "model_family"));
@@ -1747,7 +1817,7 @@ app.registerExtension({
         syncPidVisibility(this);
         syncMiniMaxControls(this);
         this._ultraLoraCounter = 0;
-        for (const value of parseDynamicValues(savedValues.slice(standardCount))) {
+        for (const value of parseDynamicValues(normalizedValues.slice(standardCount))) {
           addLoraRow(this, value, null, false);
         }
         ensureAddButton(this);

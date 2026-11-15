@@ -317,19 +317,14 @@ MODEL_CONTRACTS = {
 
 def _validate_minimax_h3_settings(
     diffusion_model, text_encoder, vae_name, prompt, batch_size, steps,
-    cfg, sampler_name, scheduler, denoise, zero_conditioning, sage_attention,
+    denoise,
 ):
-    """Reject stale/linked values before loading the large H3 model assets."""
+    """Validate H3-only native conditioning requirements without locking sampling."""
     required = (
         (int(batch_size) == 1, "Batch Size는 1이어야 합니다."),
-        (int(steps) == 6, "Steps는 6으로 고정됩니다."),
-        (float(cfg) == 1.0, "CFG는 1.0으로 고정됩니다."),
-        (sampler_name == "euler", "Sampler는 euler로 고정됩니다."),
-        (scheduler == "simple", "Scheduler는 simple로 고정됩니다."),
-        (float(denoise) == 1.0, "Denoise는 1.0으로 고정됩니다."),
-        (zero_conditioning is True, "Zero Conditioning은 ON이어야 합니다."),
-        (sage_attention is False, "MiniMax H3 Image의 SageAttention은 아직 검증되지 않아 OFF로 고정됩니다."),
         (bool(prompt.strip()), "Positive Prompt가 비어 있습니다."),
+        (int(steps) >= 1, "Steps는 1 이상이어야 합니다."),
+        (float(denoise) == 1.0, "Denoise는 1.0이어야 합니다."),
     )
     for valid, message in required:
         if not valid:
@@ -343,6 +338,17 @@ def _validate_minimax_h3_settings(
         raise ValueError("MiniMax H3 Image: 전용 Qwen3-VL MiniMax H3 텍스트 인코더를 선택하세요.")
     if not re.search(r"minimax[._-]?h3[._-]?image.*vae", vae):
         raise ValueError("MiniMax H3 Image: 전용 H3 Image VAE를 선택하세요.")
+
+
+def _minimax_h3_sampling_mode(steps, sampler_name, scheduler):
+    """The official six-step PDD path and user experiments share native KSampler.
+
+    MiniMaxH3ImageModelSampling owns the checkpoint pdd_sigmas grid; its sigma()
+    interpolates the grid for alternate counts. Never inject fixed sigmas here.
+    """
+    if int(steps) == 6 and sampler_name == "euler" and scheduler == "simple":
+        return "official_pdd_6"
+    return "experimental_native_ksampler"
 
 
 def _family_contract(model_family: str) -> dict:
@@ -1322,7 +1328,6 @@ class UltraImagePiD:
                 _node_class(required_class)
         if text_encode == "minimax_h3_image":
             _modern_node_class("MiniMaxH3ImageConditioning", "comfy_extras.nodes_minimax_h3", "MiniMaxH3ImageConditioning")
-            _node_class("ConditioningZeroOut")
         if turbo_sampling:
             for name in ("ManualSigmas", "KSamplerSelect", "RandomNoise", "CFGGuider", "SamplerCustomAdvanced"):
                 _modern_node_class(name, "comfy_extras.nodes_custom_sampler", name)
@@ -1332,7 +1337,7 @@ class UltraImagePiD:
             _modern_node_class("TextEncodeQwenImage21", "comfy_extras.nodes_qwen", "TextEncodeQwenImage21")
         _node_class("VAELoader")
         _node_class("VAEDecode")
-        if zero_conditioning and text_encode != "qwen_image21" and not skip_layer_guidance:
+        if text_encode == "minimax_h3_image" or (zero_conditioning and text_encode != "qwen_image21" and not skip_layer_guidance):
             _node_class("ConditioningZeroOut")
         if model_sampling_class:
             _node_class(model_sampling_class)
@@ -1583,6 +1588,12 @@ class UltraImagePiD:
         pid_upscale = _normalize_pid_upscale_mode(pid_upscale)
         pid_enabled = pid_upscale == PID_UPSCALE_ON
         sage_attention = _normalize_sage_attention_enabled(sage_attention)
+        if model_family == "MiniMax H3 Image":
+            # H3 is CFG-distilled and ignores negative conditioning. Keep the
+            # user's step/sampler/scheduler choices; Euler/simple/6 is the
+            # recommended exact PDD grid and other choices are experimental.
+            batch_size, cfg, denoise = 1, 1.0, 1.0
+            sage_attention = False
         try:
             contract = _family_contract(model_family)
             resolved_clip_type = self._resolve_clip_type(contract)
@@ -1621,8 +1632,13 @@ class UltraImagePiD:
                     raise ValueError("MiniMax H3 Image는 PiD 미지원입니다. PiD 업스케일을 OFF로 설정하세요.")
                 _validate_minimax_h3_settings(
                     diffusion_model, text_encoder, vae_name, prompt, batch_size, steps,
-                    cfg, sampler_name, scheduler, denoise, zero_conditioning, sage_attention,
+                    denoise,
                 )
+                sampling_mode = _minimax_h3_sampling_mode(steps, sampler_name, scheduler)
+                if sampling_mode != "official_pdd_6":
+                    print("[Ultra Image + PiD] MiniMax H3 Image 실험적 샘플링: "
+                          f"{steps} steps / {sampler_name} / {scheduler}; "
+                          "ComfyUI native H3 checkpoint sigma interpolation 사용")
             lora_rows = _collect_lora_rows(lora_values)
             self._validate_configuration(
                 diffusion_model,
@@ -1740,6 +1756,12 @@ class UltraImagePiD:
                     "MiniMaxH3ImageConditioning", "comfy_extras.nodes_minimax_h3", "MiniMaxH3ImageConditioning",
                     clip=clip, prompt=prompt, width=width, height=height,
                 )
+                # No synthetic blank picture or user negative prompt. Ordinary
+                # samplers skip the unconditional pass at CFG 1, but CFG++
+                # samplers explicitly request it even at CFG 1. Keep a valid
+                # zeroed H3 conditioning instead of an empty list: an empty
+                # list would yield a zero *model output*, not an unconditioned
+                # H3 prediction, and corrupt CFG++ step directions.
                 negative = _call_core_node("ConditioningZeroOut", conditioning=positive)[0]
             except Exception as exc:
                 raise RuntimeError(_error_message("MiniMax H3 Conditioning / latent 생성 실패", [
@@ -1822,7 +1844,7 @@ class UltraImagePiD:
             positive=prompt,
             negative=None if zero_conditioning or model_family == "MiniMax H3 Image" else negative_prompt,
             positive_input=None,
-            zero_conditioning=zero_conditioning,
+            zero_conditioning=False if model_family == "MiniMax H3 Image" else zero_conditioning,
         )
 
         if pid_enabled:

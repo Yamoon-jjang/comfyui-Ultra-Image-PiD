@@ -49,7 +49,7 @@ jobs:
         run: |
           archive="$(cat /tmp/ultra-image-pid-release-name)"
           tag="$(cat /tmp/ultra-image-pid-tag)"
-          notes_file="RELEASE_NOTES_${tag}.md"
+          notes_file="RELEASE_NOTES.md"
           if [ ! -f "$notes_file" ]; then
             echo "Missing release notes for $tag: $notes_file" >&2
             exit 1

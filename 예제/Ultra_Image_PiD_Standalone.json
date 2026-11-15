@@ -215,7 +215,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "Ultra Image + PiD — Standalone example\n\nBoth prompt inputs are optional. Disconnect both to test empty-prompt generation.\n\nZero Conditioning defaults to ON: it ignores the connected Negative. Switch OFF to encode connected Negative text, or an empty string if it is unconnected.\n\nSelect installed diffusion model, text encoder and VAE files first. PiD OFF needs no PiD files. Qwen Image 2.1 PiD is unavailable.\n\nPiD ON needs PixelDiT checkpoint, pixel_space VAE and Gemma ELM encoder."
+        "Ultra Image + PiD — Starter workflow / 시작용 예제\n\n이 예제는 Krea 2로 시작합니다. 예제에 저장된 모델 파일명은 컴퓨터마다 다르므로 Diffusion Model, Text Encoder, VAE를 설치된 파일로 다시 선택하세요.\nThis starter opens with Krea 2. Select your own installed diffusion model, text encoder, and VAE; saved filenames may not exist on your system.\n\nKrea 2 등 일반 모델에서는 Positive/Negative STRING 연결이 선택 사항입니다. Zero Conditioning ON은 사용자 Negative를 무시하고, OFF는 연결된 Negative를 인코딩합니다.\nPositive/Negative STRING connections are optional for supported non-H3 families. Zero Conditioning ON ignores user negative text; OFF encodes it.\n\nMiniMax H3를 선택하면 비어 있지 않은 Positive Prompt가 필요하고, 사용자 Negative/Zero Conditioning 설정과 PiD는 적용하지 않습니다. 내부 ConditioningZeroOut은 CFG++ 샘플러용입니다.\nMiniMax H3 requires nonempty Positive Prompt, ignores user Negative/Zero Conditioning controls, and disables PiD. Internal ConditioningZeroOut supports CFG++ samplers.\n\nPiD OFF는 별도 PiD 파일이 필요 없습니다. PiD ON은 호환 PixelDiT 모델, pixel_space VAE, Gemma ELM 인코더가 필요합니다. Qwen Image 2.1 및 H3에는 PiD를 적용하지 않습니다.\nPiD OFF needs no PiD files. PiD ON requires compatible PixelDiT, pixel_space VAE and Gemma ELM. PiD is unavailable for Qwen Image 2.1 and H3."
       ]
     }
   ],

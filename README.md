@@ -1,4 +1,4 @@
-# Ultra Image + PiD
+# Ultra Image + PiD — v1.0.5
 ### All-in-One ComfyUI Image Generation & PixelDiT Upscaling
 ### 다양한 이미지 모델 생성 · 모델별 설정 기억 · 선택형 PiD 업스케일
 
@@ -69,7 +69,7 @@ PiD는 단순한 확대가 아니라 세부 내용을 재생성하므로 원본�
 - **Zero Conditioning:** ON이면 모델 계열에 맞는 무조건 conditioning을 사용하며 연결된 Negative 텍스트는 무시합니다. Negative 프롬프트를 적용하려면 OFF로 바꿉니다.
 - **선택적 SageAttention:** 호환되는 KJNodes를 설치한 경우 메인 생성 모델에 적용할 수 있습니다. OFF 상태에서는 KJNodes/SageAttention이 필요하지 않습니다.
 - **모델별 특수 경로:** Qwen Image 2.1 Turbo는 파일명에 Turbo가 포함된 경우 전용 고정 sigma/CFG 1 경로를 사용하며, MOSS-Image에는 필요한 Skip Layer Guidance를 내부 적용합니다.
-- **MiniMax H3 Image:** 전용 `MiniMaxH3ImageConditioning`이 Positive와 5D latent를 함께 생성합니다. Steps 6 / CFG 1 / euler / simple / Denoise 1 / Batch 1 고정, PiD·Negative·SageAttention 비활성화, 첫 사용 2048×2048입니다. 최초 모델 자동 추천은 설치된 경량 `int8_convrot`를 BF16보다 우선하며, 사용자가 저장한 모델 선택은 덮어쓰지 않습니다. 공식 네이티브 약 16MP(4096×4096 등)까지 PiD 없이 생성할 수 있습니다. **v1.0.4부터** 직접 입력·복원된 해상도 및 외부 선택기의 8/16픽셀 단위 값을 H3 실행 직전에 가장 가까운 32픽셀 배수로 보정합니다(예: 1680 → 1696). 다른 모델의 설정 기억과 해상도는 변경하지 않습니다. 연결된 PiD ON 값이 남아 있으면 조용히 무시하지 않고 실행 전에 차단합니다.
+- **MiniMax H3 Image:** 전용 `MiniMaxH3ImageConditioning`이 Positive와 5D latent를 함께 생성합니다. **6 Steps / Euler / Simple은 공식 권장 기본값**이며 이때 ComfyUI가 체크포인트의 **`pdd_sigmas`**에 맞춰 샘플링합니다. Steps·Sampler·Scheduler를 직접 바꾸면 네이티브 H3 샘플러를 사용하는 **실험적 경로**로 실행하며, 다른 스텝 수는 체크포인트 시그마 격자를 보간합니다. **CFG 1 / Denoise 1 / Batch 1 / SageAttention OFF / PiD OFF**만 H3에서 내부 고정합니다. 부정 프롬프트 텍스트와 사용자가 설정하는 Zero Conditioning 분기, 별도의 빈 이미지 보조는 **H3 생성에서 적용하지 않지만**, CFG 1에서도 negative 예측을 요구하는 CFG++ 샘플러를 위해 내부적으로 `ConditioningZeroOut(positive)`를 제공합니다. 기존 Negative 연결선은 보존합니다. 모델 자동 추천은 `int8_convrot`를 우선하되 저장된 선택을 덮어쓰지 않습니다. 네이티브 약 16MP를 PiD 없이 생성하며, **32픽셀 배수 보정**(예: 1680 → 1696)은 유지합니다. 다른 모델의 설정 기억·해상도·샘플링 경로는 변경하지 않습니다.
 
 ### 지원 모델 및 PiD 호환성
 
@@ -133,7 +133,7 @@ This is support for the **seven listed families**, not a claim that every diffus
 
 Switch from **Krea 2 → Z-Image → Krea 2** without manually reconstructing the previous Krea 2 configuration every time.
 
-- **Remembered:** diffusion model, text encoder, VAE, dimensions, batch size, steps, CFG, sampler, scheduler, denoise, Zero Conditioning, PiD controls, SageAttention, and LoRA files/order/strength, among other node settings.
+- **Remembered:** diffusion model, text encoder, VAE, dimensions, batch size, steps, CFG, sampler, scheduler, denoise, Zero Conditioning, PiD controls, SageAttention, and LoRA files/order/strength. For H3, steps/sampler/scheduler remain user-editable and are remembered per family.
 - **Not remembered in per-family settings:** Positive/Negative prompt text or Seed.
 - **When saved:** only **after the generation request is successfully accepted into the ComfyUI queue**. Merely changing a widget does not commit a new last-generated configuration.
 - **Where saved:** browser `localStorage` for the current browser and ComfyUI origin. Switching browsers/addresses, clearing site data, or using a private window may result in different or missing saved settings.
@@ -163,7 +163,7 @@ PixelDiT can reconstruct or change fine details rather than simply resizing pixe
 - **Zero Conditioning:** ON uses the appropriate unconditional path for the selected model family and ignores the Negative input; turn it OFF to encode a provided Negative prompt.
 - **Optional SageAttention:** can apply KJNodes Patch Sage Attention to the main generation model when installed. With the switch OFF, **KJNodes is not required**.
 - **Specialized model handling:** Qwen Image 2.1 models whose filenames identify them as Turbo use their fixed-sigma/CFG 1 route; MOSS-Image receives its required Skip Layer Guidance.
-- **MiniMax H3 Image:** native conditioning supplies both positive conditioning and a 5D latent. Steps=6, CFG=1, euler/simple, denoise=1, batch=1; PiD/negative guidance/SageAttention are disabled for this family. **Since v1.0.4**, typed/restored dimensions and upstream 8/16-pixel-grid selector outputs are aligned to the nearest 32-pixel multiple before H3 execution (e.g. 1680 → 1696), without altering any other model family's settings.
+- **MiniMax H3 Image:** native conditioning supplies positive conditioning and a 5D latent. **6 steps / Euler / Simple** is the recommended official setting, where ComfyUI uses the checkpoint's **`pdd_sigmas`** grid. Alternate steps/samplers/schedulers are user-editable, use native KSampler, and are experimental; alternate counts interpolate the H3 grid. **CFG 1 / Denoise 1 / Batch 1**, **SageAttention OFF**, and **PiD OFF** remain H3-only fixed controls. User negative text, the user-facing Zero Conditioning toggle, and blank-image assistance are not applied to H3. Internally `ConditioningZeroOut(positive)` supplies a valid unconditional fallback for CFG++ samplers that request it even at CFG 1. Existing Negative Prompt connections are preserved. **32px effective resolution alignment** is unchanged. Other model families retain their current behavior and sampling controls.
 
 ### Model and PiD compatibility
 
@@ -191,7 +191,7 @@ Connect either `IMAGE` output to a normal ComfyUI `Save Image` node to write an 
 
 ### MiniMax H3 Image setup
 
-Install the native [MiniMax H3 Image diffusion model and VAE](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) and the [MiniMax H3 Qwen3-VL encoder](https://huggingface.co/Comfy-Org/MiniMax-H3). Suggested filenames are `minimax_h3_image_pruned_int8_convrot.safetensors`, `qwen3vl_32b_minimax_h3_int8_convrot.safetensors`, and `minimax_h3_image_vae_fp16.safetensors`. Place them under their respective ComfyUI model folders. First use defaults to 2048×2048, six steps, CFG 1, euler/simple and batch 1; PiD, negative guidance and SageAttention are locked off. The external Positive Prompt STRING may come from a separate prompt enhancer; this AIO does not bundle one. MiniMax skips the node's private RAM asset reuse. Its prompt must not be empty.
+Install the native [MiniMax H3 Image diffusion model and VAE](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) and [MiniMax H3 Qwen3-VL encoder](https://huggingface.co/Comfy-Org/MiniMax-H3). Suggested filenames are `minimax_h3_image_pruned_int8_convrot.safetensors`, `qwen3vl_32b_minimax_h3_int8_convrot.safetensors`, and `minimax_h3_image_vae_fp16.safetensors`. Place them in the corresponding ComfyUI model folders. First use recommends **6 steps / Euler / Simple / CFG 1** and 2048×2048; the official PDD grid comes from the model checkpoint. Change Steps, Sampler or Scheduler for experimental native H3 sampling. CFG 1, Denoise 1 and Batch 1 are enforced; SageAttention and PiD are OFF. No blank picture or user negative prompt text is injected for H3; an internal zeroed conditioning is available to CFG++ samplers. The external Positive Prompt STRING may come from a separate prompt enhancer; this AIO does not bundle one. MiniMax skips RAM asset reuse, and its positive prompt must not be empty.
 
 ### PiD prerequisites
 
@@ -260,7 +260,7 @@ ComfyUI/
 
 ### 호환성·라이선스 / Compatibility & License
 
-최신 모델별 기능을 제공하는 **호환 ComfyUI 코어**가 필요합니다. 확산 모델·인코더·VAE·PiD 가중치는 배포 ZIP에 포함되지 않으며 외부 모델 라이선스를 따릅니다. 정적 코드/패키지 검증은 모든 GPU에서의 생성·업스케일 성공을 보증하지 않습니다.
+최신 모델별 기능을 제공하는 **호환 ComfyUI 코어**가 필요합니다. 확산 모델·인코더·VAE·PiD 가중치는 배포 ZIP에 포함되지 않으며 외부 모델 라이선스를 따릅니다. 실제 생성·업스케일 결과는 모델 조합과 GPU 환경에 따라 달라질 수 있습니다.
 
 A compatible recent **ComfyUI core** is required for the relevant model-specific features. Diffusion, encoder, VAE, and PiD weights are **not bundled**, and their respective model licenses apply. Syntax/package checks do **not** guarantee successful inference or upscaling on every GPU/setup.
 

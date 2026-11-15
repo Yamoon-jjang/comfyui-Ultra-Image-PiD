@@ -664,6 +664,16 @@ def _family_resolution_multiple(model_family: str) -> int:
     return int(_family_contract(model_family).get("resolution_multiple") or 8)
 
 
+def _align_minimax_h3_resolution(value: int) -> int:
+    """Align a validated H3 dimension to the native 32px canvas grid.
+
+    An upstream resolution selector may use an 8px or 16px grid. Align only
+    the H3 execution dimensions, leaving the source widget/link untouched.
+    Ties round upward, matching the H3 frontend's Math.round behavior.
+    """
+    return min(MAX_RESOLUTION, max(64, ((value + 16) // 32) * 32))
+
+
 def _require_family_resolution_multiple(model_family: str, value: int, label: str) -> None:
     multiple = _family_resolution_multiple(model_family)
     if multiple <= 8 or int(value) % multiple == 0:
@@ -1595,6 +1605,13 @@ class UltraImagePiD:
         try:
             width = _normalize_resolution_dimension(width, "width")
             height = _normalize_resolution_dimension(height, "height")
+            if model_family == "MiniMax H3 Image":
+                raw_width, raw_height = width, height
+                width = _align_minimax_h3_resolution(width)
+                height = _align_minimax_h3_resolution(height)
+                if (width, height) != (raw_width, raw_height):
+                    print("[Ultra Image + PiD] MiniMax H3 Image 해상도를 32배수로 보정: "
+                          "{}×{} → {}×{}".format(raw_width, raw_height, width, height))
             _require_family_resolution_multiple(model_family, width, "width")
             _require_family_resolution_multiple(model_family, height, "height")
             if model_family == "MiniMax H3 Image":

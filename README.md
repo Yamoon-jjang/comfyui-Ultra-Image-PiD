@@ -69,7 +69,7 @@ PiD는 단순한 확대가 아니라 세부 내용을 재생성하므로 원본�
 - **Zero Conditioning:** ON이면 모델 계열에 맞는 무조건 conditioning을 사용하며 연결된 Negative 텍스트는 무시합니다. Negative 프롬프트를 적용하려면 OFF로 바꿉니다.
 - **선택적 SageAttention:** 호환되는 KJNodes를 설치한 경우 메인 생성 모델에 적용할 수 있습니다. OFF 상태에서는 KJNodes/SageAttention이 필요하지 않습니다.
 - **모델별 특수 경로:** Qwen Image 2.1 Turbo는 파일명에 Turbo가 포함된 경우 전용 고정 sigma/CFG 1 경로를 사용하며, MOSS-Image에는 필요한 Skip Layer Guidance를 내부 적용합니다.
-- **MiniMax H3 Image:** 전용 `MiniMaxH3ImageConditioning`이 Positive와 5D latent를 함께 생성합니다. Steps 6 / CFG 1 / euler / simple / Denoise 1 / Batch 1 고정, PiD·Negative·SageAttention 비활성화, 첫 사용 2048×2048입니다. 최초 모델 자동 추천은 설치된 경량 `int8_convrot`를 BF16보다 우선하며, 사용자가 저장한 모델 선택은 덮어쓰지 않습니다. 공식 네이티브 약 16MP(4096×4096 등)까지 PiD 없이 생성할 수 있으며 가로·세로는 32픽셀 배수로 입력합니다. 연결된 PiD ON 값이 남아 있으면 조용히 무시하지 않고 실행 전에 차단합니다.
+- **MiniMax H3 Image:** 전용 `MiniMaxH3ImageConditioning`이 Positive와 5D latent를 함께 생성합니다. Steps 6 / CFG 1 / euler / simple / Denoise 1 / Batch 1 고정, PiD·Negative·SageAttention 비활성화, 첫 사용 2048×2048입니다. 최초 모델 자동 추천은 설치된 경량 `int8_convrot`를 BF16보다 우선하며, 사용자가 저장한 모델 선택은 덮어쓰지 않습니다. 공식 네이티브 약 16MP(4096×4096 등)까지 PiD 없이 생성할 수 있습니다. **v1.0.4부터** 직접 입력·복원된 해상도 및 외부 선택기의 8/16픽셀 단위 값을 H3 실행 직전에 가장 가까운 32픽셀 배수로 보정합니다(예: 1680 → 1696). 다른 모델의 설정 기억과 해상도는 변경하지 않습니다. 연결된 PiD ON 값이 남아 있으면 조용히 무시하지 않고 실행 전에 차단합니다.
 
 ### 지원 모델 및 PiD 호환성
 
@@ -83,7 +83,7 @@ PiD는 단순한 확대가 아니라 세부 내용을 재생성하므로 원본�
 | **Qwen Image 2.1 (Turbo 포함)** | — | **원본 이미지 생성 지원, PiD는 OFF로 잠금**; 해상도 16의 배수 |
 | **MiniMax H3 Image** | — | **T2I 생성 지원, PiD OFF 고정**; 해상도 32의 배수, Batch 1 |
 
-Qwen Image 2.1과 MOSS-Image의 가로·세로는 16의 배수, MiniMax H3 Image는 32의 배수여야 합니다. 다른 지원 계열은 최소 8의 배수 기준을 따릅니다. PiD 모델은 **원본 모델 파일명이 아니라 위 호환 계열**에 맞춰 선택해야 합니다.
+Qwen Image 2.1과 MOSS-Image의 가로·세로는 16의 배수, MiniMax H3 Image의 실제 실행 해상도는 32의 배수입니다(입력값은 자동 보정). 다른 지원 계열은 최소 8의 배수 기준을 따릅니다. PiD 모델은 **원본 모델 파일명이 아니라 위 호환 계열**에 맞춰 선택해야 합니다.
 
 ### 빠른 시작
 
@@ -163,7 +163,7 @@ PixelDiT can reconstruct or change fine details rather than simply resizing pixe
 - **Zero Conditioning:** ON uses the appropriate unconditional path for the selected model family and ignores the Negative input; turn it OFF to encode a provided Negative prompt.
 - **Optional SageAttention:** can apply KJNodes Patch Sage Attention to the main generation model when installed. With the switch OFF, **KJNodes is not required**.
 - **Specialized model handling:** Qwen Image 2.1 models whose filenames identify them as Turbo use their fixed-sigma/CFG 1 route; MOSS-Image receives its required Skip Layer Guidance.
-- **MiniMax H3 Image:** native conditioning supplies both positive conditioning and a 5D latent. Steps=6, CFG=1, euler/simple, denoise=1, batch=1; PiD/negative guidance/SageAttention are disabled for this family.
+- **MiniMax H3 Image:** native conditioning supplies both positive conditioning and a 5D latent. Steps=6, CFG=1, euler/simple, denoise=1, batch=1; PiD/negative guidance/SageAttention are disabled for this family. **Since v1.0.4**, typed/restored dimensions and upstream 8/16-pixel-grid selector outputs are aligned to the nearest 32-pixel multiple before H3 execution (e.g. 1680 → 1696), without altering any other model family's settings.
 
 ### Model and PiD compatibility
 
@@ -177,7 +177,7 @@ PixelDiT can reconstruct or change fine details rather than simply resizing pixe
 | **Qwen Image 2.1 (including Turbo)** | — | **Generation supported; PiD locked OFF**; dimensions divisible by 16 |
 | **MiniMax H3 Image** | — | **T2I generation; PiD locked OFF**, dimensions divisible by 32, batch 1 |
 
-Both dimensions must be multiples of **16** for Qwen Image 2.1 and MOSS-Image, **32** for MiniMax H3 Image; the other supported families use a minimum multiple of **8**. Select your PiD model by the compatible **latent/PiD family**, not merely by the name of the original generator checkpoint.
+Both dimensions must be multiples of **16** for Qwen Image 2.1 and MOSS-Image. MiniMax H3 Image's **effective execution dimensions** are always multiples of **32** (incoming dimensions are aligned automatically); the other supported families use a minimum multiple of **8**. Select your PiD model by the compatible **latent/PiD family**, not merely by the name of the original generator checkpoint.
 
 ### Quick start
 

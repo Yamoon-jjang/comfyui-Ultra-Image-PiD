@@ -1,5 +1,5 @@
 ﻿Ultra Image + PiD — 사용 설명서 / USER MANUAL
-버전 / Version: 1.0.3
+버전 / Version: 1.0.4
 한국어 안내 (English guide follows below)
 ============================================================
 
@@ -51,7 +51,7 @@ VAE가 서로 호환되어야 합니다. 해상도는 최소 8의 배수여야 �
 Qwen Image 2.1과 MOSS-Image는 16의 배수,
 MiniMax H3 Image는 32의 배수가 필요합니다.
 
-[MiniMax H3 Image 공식 T2I 경로 — v1.0.3]
+[MiniMax H3 Image 공식 T2I 경로 — v1.0.4]
   diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
   text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
   vae/minimax_h3_image_vae_fp16.safetensors
@@ -64,8 +64,11 @@ MiniMax H3 Image는 32의 배수가 필요합니다.
   최초 자동 추천에서는 경량 int8_convrot 모델/인코더가 설치되어 있으면
   BF16보다 우선 선택합니다. 기존에 저장된 모델 선택은 유지합니다.
   공식 4096×4096 등 약 16MP 네이티브 해상도를 PiD 없이 지원합니다.
-  가로·세로 값은 32픽셀 단위로 입력하며, 16의 배수만 맞는 값은
-  오류가 발생할 수 있으므로 조절 간격도 H3 선택 시 32로 바뀝니다.
+  H3 선택 시 가로·세로 조절 간격은 32픽셀입니다. 기존 워크플로우에
+  16배수 크기가 저장돼 있거나 외부 해상도 선택기가 8·16픽셀 단위로
+  전달하더라도 실제 H3 실행 전 가장 가까운 32배수로 자동 보정합니다.
+  예: 가로 1680 → 1696. 다른 모델의 원래 설정·기억값은 바꾸지 않습니다.
+  숫자가 아니거나 허용 범위(64~16384)를 벗어난 값은 오류로 처리합니다.
   Negative STRING 연결은 유지하되 적용하지 않고 PiD와 SageAttention은
   OFF로 고정합니다. 모델 전용 LoRA는 선택적으로 사용할 수 있습니다.
   빈 긍정 프롬프트는 오류입니다. 외부 LLM/프롬프트 확장기의 STRING
@@ -317,7 +320,7 @@ Model weights are NOT bundled. The diffusion model, text encoder, VAE and
 model_family must match. Dimensions must be multiples of 8; Qwen Image 2.1
 and MOSS-Image require multiples of 16; MiniMax H3 requires multiples of 32.
 
-[MiniMax H3 Image native T2I — v1.0.3]
+[MiniMax H3 Image native T2I — v1.0.4]
   models/diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors
   models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors
   models/vae/minimax_h3_image_vae_fp16.safetensors
@@ -328,7 +331,11 @@ First use selects the three installed H3 assets where available, and sets
 The first-use suggestion prefers installed int8_convrot weights/encoder over
 BF16; remembered user selections remain authoritative.
 H3 supports official native ~16MP sizes (e.g. 4096x4096) without PiD;
-Width and Height use 32px increments in the frontend and backend.
+Width and Height use 32px increments in the frontend. On H3 execution,
+saved/typed dimensions and connected 8/16px-grid selector values are aligned
+to the nearest 32px multiple (1680 becomes 1696). Other model families and
+their remembered settings are unchanged. Invalid or out-of-range inputs
+still produce an error instead of being silently accepted.
 Those sampling values are locked; PiD and SageAttention are OFF. Negative
 Prompt is unused but an existing STRING link is never disconnected.
 Positive Prompt cannot be blank in H3. The external prompt enhancer may

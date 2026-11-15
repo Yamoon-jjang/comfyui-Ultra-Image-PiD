@@ -73,8 +73,8 @@ const MINIMAX_ASSETS = {
 // The official int8_convrot variants are lighter than the matching BF16 files.
 const MINIMAX_FIRST_USE_PREFERRED = /int8[_-]?convrot/i;
 const MINIMAX_NATIVE_SIZE_TOOLTIP = [
-  "MiniMax H3 Image uses multiples of 32. Native ~16MP examples: 4096×4096 (1:1), 4736×3552 (4:3), 5024×3360 (3:2), 5472×3072 (16:9), 6272×2688 (21:9); portrait sizes can be transposed. Start at 2048×2048 to save memory.",
-  "MiniMax H3 Image는 32픽셀 배수입니다. 네이티브 약 16MP 예: 4096×4096(1:1), 4736×3552(4:3), 5024×3360(3:2), 5472×3072(16:9), 6272×2688(21:9). 세로형은 가로·세로를 바꿉니다. 메모리 절약을 위해 2048×2048부터 시작하세요.",
+  "MiniMax H3 Image uses multiples of 32. A typed or restored size is snapped to the nearest valid multiple (1680 → 1696). Native ~16MP examples: 4096×4096 (1:1), 4736×3552 (4:3), 5024×3360 (3:2), 5472×3072 (16:9), 6272×2688 (21:9); portrait sizes can be transposed. Start at 2048×2048 to save memory.",
+  "MiniMax H3 Image는 32픽셀 배수입니다. 직접 입력하거나 복원한 값은 가장 가까운 32배수로 맞춥니다(1680 → 1696). 네이티브 약 16MP 예: 4096×4096(1:1), 4736×3552(4:3), 5024×3360(3:2), 5472×3072(16:9), 6272×2688(21:9). 세로형은 가로·세로를 바꿉니다. 메모리 절약을 위해 2048×2048부터 시작하세요.",
 ];
 // Only consulted when exiting H3 for an otherwise unconfigured legacy family;
 // do not change legacy -> legacy first-use behavior or established profiles.
@@ -669,6 +669,30 @@ function restoreUnconfiguredLegacyAssetsAfterH3(node, family) {
   }
 }
 
+function snapMiniMaxSizeWidget(node, target) {
+  if (!target || String(getWidgetValue(node, "model_family")) !== MINIMAX_FAMILY) return false;
+  const value = Number(target.value);
+  // Preserve malformed/out-of-range inputs for Python's explicit validation.
+  // Only align ordinary editable dimensions, never a value for another family.
+  if (!Number.isSafeInteger(value) || value < 64 || value > 16384) return false;
+  const aligned = Math.min(16384, Math.max(64, Math.round(value / 32) * 32));
+  if (value === aligned) return false;
+  target.value = aligned;
+  triggerRedraw(node, target);
+  return true;
+}
+
+function attachMiniMaxSizeHook(node, target) {
+  if (!target || target.__ultraMiniMaxSizeHook) return;
+  const originalCallback = typeof target.callback === "function" ? target.callback : null;
+  target.callback = function ultraMiniMaxSizeCallback(value, ...args) {
+    const result = originalCallback?.call(this, value, ...args);
+    snapMiniMaxSizeWidget(node, target);
+    return result;
+  };
+  target.__ultraMiniMaxSizeHook = true;
+}
+
 function syncMiniMaxControls(node) {
   const minimax = String(getWidgetValue(node, "model_family")) === MINIMAX_FAMILY;
   // Native H3 Conditioning requires 32px-aligned dimensions. The legacy
@@ -676,11 +700,13 @@ function syncMiniMaxControls(node) {
   for (const name of ["width", "height"]) {
     const target = findWidget(node, name);
     if (target) {
+      attachMiniMaxSizeHook(node, target);
       target.options ||= {};
       // Current ComfyUI number widgets use step2; the legacy step is 10x.
       const sizeStep = minimax ? 32 : 16;
       target.options.step2 = sizeStep;
       target.options.step = sizeStep * 10;
+      if (minimax) snapMiniMaxSizeWidget(node, target);
     }
   }
   for (const [name, value] of Object.entries(MINIMAX_FIXED)) {

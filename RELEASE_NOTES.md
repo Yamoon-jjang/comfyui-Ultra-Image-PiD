@@ -1,19 +1,19 @@
-# Ultra Image + PiD v1.0.5 — What's New / 주요 변경 사항
+# Ultra Image + PiD v1.0.6 — What's New / 주요 변경 사항
 
-Changes since v1.0.4 / v1.0.4 이후 변경 사항
+Changes since v1.0.5 / v1.0.5 이후 변경 사항
 
 ## 한국어
 
-- **MiniMax H3 Image 생성 지원:** 공식 `MiniMaxH3ImageConditioning`으로 Positive와 5D latent를 구성하고, 체크포인트의 `pdd_sigmas`를 활용합니다.
-- **샘플링 선택:** 6 Steps / Euler / simple을 기본 권장합니다. Steps·Sampler·Scheduler 변경을 허용하며 다른 조합은 실험적입니다.
-- **H3 전용 제약:** CFG 1·Denoise 1·Batch 1을 고정하고 SageAttention과 PiD는 사용하지 않습니다. 해상도는 32픽셀 배수로 정렬하며 네이티브 약 16MP 생성이 가능합니다.
-- **CFG++ 호환:** H3에서 사용자 Negative Prompt 및 Zero Conditioning 설정은 적용하지 않지만, CFG++ 샘플러가 요구하는 내부 `ConditioningZeroOut(positive)`를 제공합니다. 빈 이미지 보조는 사용하지 않습니다.
-- **기존 기능 유지:** 저장된 LoRA 설정과 워크플로우 연결을 유지하며, Krea 2·Z-Image·Anima·Qwen 계열·MOSS의 생성 및 PiD 동작은 변경하지 않았습니다.
+- **모델별 노드 높이 기억:** Krea 2, Z-Image, Anima, Qwen, MOSS, MiniMax H3 등 각 모델 계열에서 사용자가 조절한 노드 높이를 기억하고 다시 선택하면 복원합니다.
+- **너비 유지:** 모델을 전환해도 모델별 너비 기억값을 적용하지 않고 현재 노드 너비를 유지합니다. ComfyUI가 요구하는 최소 너비는 지킵니다.
+- **MiniMax H3 레이아웃:** 다른 모델에서 H3로 바꿀 때 보이지 않는 설정 행 때문에 노드 하단에 불필요한 빈 공간이 남는 현상을 개선했습니다. 사용자가 추가한 높이는 보존합니다.
+- **안정적인 전환:** 모델 설정 변경이 완료된 뒤 최종 크기를 한 번 적용하여 불필요한 하단 테두리 움직임을 방지합니다. 저장된 워크플로우의 사용자 크기를 유지하고 이전 테스트 형태의 높이 기록도 이어받습니다.
+- **생성 기능 유지:** 모델 로딩, 생성 프롬프트, 샘플링, LoRA, PiD, CFG++ 및 연결 동작은 v1.0.5와 동일합니다.
 
 ## English
 
-- **MiniMax H3 Image generation:** Uses native `MiniMaxH3ImageConditioning` with positive conditioning, a 5D latent, and checkpoint `pdd_sigmas`.
-- **Sampling controls:** Recommends 6 steps / Euler / simple. Other user-selected steps, samplers, and schedulers are experimental.
-- **H3-specific settings:** Keeps CFG 1, Denoise 1, Batch 1, SageAttention/PiD OFF, 32px-aligned dimensions, and native generation up to approximately 16MP.
-- **CFG++ support:** User Negative Prompt text and the Zero Conditioning setting are not applied to H3. Internal `ConditioningZeroOut(positive)` supports CFG++ samplers without any blank-image assistance.
-- **Existing features:** Preserves LoRA choices and workflow connections. Krea 2, Z-Image, Anima, Qwen, and MOSS generation/PiD behavior is unchanged.
+- **Per-family node height:** Remembers each image-model family's user-adjusted node height and restores it when switching back.
+- **Stable width:** Keeps the current manually adjusted width across model changes rather than restoring a family-specific width; respects ComfyUI's minimum width.
+- **MiniMax H3 layout:** Removes unnecessary empty space left below the H3 controls after switching from a family with more visible rows, while preserving intentionally added height.
+- **Smooth model switching:** Applies the final size once after model settings settle, preserves the user-sized workflow layout, and imports previously stored height values when present.
+- **Generation unchanged:** Model loading, prompting, sampling, LoRA, PiD, CFG++ support, and connections retain v1.0.5 behavior.

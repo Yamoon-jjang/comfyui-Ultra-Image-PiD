@@ -44,6 +44,8 @@ const QUEUE_HOOK_FLAG = "__ultraStandaloneImagePiDQueueHook";
 const SETTINGS_STORE_VERSION = 1;
 const SETTINGS_STORAGE_KEY = "UltraStandaloneImagePiD.lastGeneratedSettings.v2";
 const NODE_SETTINGS_KEY_PROPERTY = "__ultraStandaloneImagePiDSettingsKey";
+const FAMILY_HEIGHT_PROPERTY = "ultraStandaloneImagePiDFamilyHeightsV1";
+const LEGACY_FAMILY_SIZE_PROPERTY = "ultraStandaloneImagePiDFamilySizesV1";
 const MAX_STORED_NODE_KEYS = 64;
 const EXCLUDED_PERSIST_WIDGETS = new Set([
   "seed",
@@ -1063,7 +1065,7 @@ function replaceLoraRows(node, rows) {
   // decides whether a single native content-fit is needed after it finishes.
 }
 
-async function applyStoredSettingsForFamily(node, family, restoreToken, { restorePidToggle = true } = {}) {
+async function applyStoredSettingsForFamily(node, family, restoreToken, { restorePidToggle = true, geometryTransition = null } = {}) {
   if (!node || !family) return false;
   const stored = node.__ultraFamilyDrafts?.[family] || getStoredSettings(node, family);
   const preparedLoras = stored ? await prepareLoraRows(stored.loras || []) : [];
@@ -1113,7 +1115,11 @@ async function applyStoredSettingsForFamily(node, family, restoreToken, { restor
   // Only visible-row structural changes justify a native content-fit.
   // Merely restoring different model/sampler values must never alter geometry.
   const afterPidVisible = PID_DETAIL_WIDGET_NAMES.some((name) => !findWidget(node, name)?.hidden);
-  if (beforeRowCount !== getLoraRows(node).length || beforePidVisible !== afterPidVisible) {
+  if (geometryTransition) {
+    // Make one final size change only after the LoRA/widget layout settles.
+    // Avoid a provisional resize that makes the bottom border jump twice.
+    applyFamilySize(node, family, geometryTransition);
+  } else if (beforeRowCount !== getLoraRows(node).length || beforePidVisible !== afterPidVisible) {
     fitAfterWidgetStructureChange(node);
   }
   triggerRedraw(node);
@@ -1128,6 +1134,10 @@ function attachModelFamilyRestoreHook(node) {
   node.__ultraCurrentFamily = String(getWidgetValue(node, "model_family") || "");
   widget.callback = function ultraImagePiDModelFamilyCallback(value, ...args) {
     const oldFamily = node.__ultraCurrentFamily;
+    const nextFamily = String(value || widget.value || "");
+    const geometryTransition = oldFamily && oldFamily !== nextFamily &&
+      !node.__ultraConfiguredInProgress && !app?.configuringGraph
+      ? beginFamilySizeTransition(node, oldFamily) : null;
     const result = originalCallback ? originalCallback.call(this, value, ...args) : undefined;
     const family = String(value || widget.value || "");
     if (oldFamily && oldFamily !== family && !node.__ultraConfiguredInProgress && !app?.configuringGraph) {
@@ -1143,7 +1153,7 @@ function attachModelFamilyRestoreHook(node) {
     const restoreToken = Number(node.__ultraSettingsRestoreToken || 0) + 1;
     node.__ultraSettingsRestoreToken = restoreToken;
     Promise.resolve()
-      .then(() => applyStoredSettingsForFamily(node, family, restoreToken))
+      .then(() => applyStoredSettingsForFamily(node, family, restoreToken, { geometryTransition }))
       .catch((error) => {
         console.warn(tr("[Ultra Image + PiD] Failed to restore per-family last generation settings", "[Ultra Image + PiD] 모델별 마지막 생성 설정 복원 실패"), error);
       });
@@ -1614,6 +1624,95 @@ function fitAfterWidgetStructureChange(node) {
   triggerRedraw(node);
 }
 
+// A workflow already carries the user's requested size. On load only grow
+// undersized nodes enough to display their content; shrinking to computeSize()
+// here would discard a deliberately enlarged node and its editor-like spacing.
+function preserveLoadedNodeSize(node) {
+  if (!node || typeof node.computeSize !== "function" || typeof node.setSize !== "function") return;
+  const nativeSize = node.computeSize();
+  const width = Math.max(Number(node.size?.[0]) || 0, Number(nativeSize?.[0]) || 0);
+  const height = Math.max(Number(node.size?.[1]) || 0, Number(nativeSize?.[1]) || 0);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+  if (node.size?.[0] !== width || node.size?.[1] !== height) {
+    node.setSize([width, height]);
+    triggerRedraw(node);
+  }
+}
+
+// Only height is remembered per family; width remains the node's live width.
+// Keep the user's manually added vertical space on model changes: a raw
+// computeSize() fit would erase that space on every H3 switch.
+function validFamilySize(value) {
+  const width = Number(value?.[0]);
+  const height = Number(value?.[1]);
+  return Number.isFinite(width) && width >= MIN_NODE_WIDTH && width <= 16384 &&
+    Number.isFinite(height) && height >= 40 && height <= 16384
+    ? [width, height] : null;
+}
+
+function validFamilyHeight(value) {
+  const height = Number(value);
+  return Number.isFinite(height) && height >= 40 && height <= 16384 ? height : null;
+}
+
+function familyHeightStore(node) {
+  node.properties ||= {};
+  const value = node.properties[FAMILY_HEIGHT_PROPERTY];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    node.properties[FAMILY_HEIGHT_PROPERTY] = {};
+  }
+  const heights = node.properties[FAMILY_HEIGHT_PROPERTY];
+  const legacy = node.properties[LEGACY_FAMILY_SIZE_PROPERTY];
+  if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+    for (const family of Object.keys(FAMILY_LATENT_SPACE)) {
+      if (validFamilyHeight(heights[family]) !== null) continue;
+      const oldSize = validFamilySize(legacy[family]);
+      if (oldSize) heights[family] = oldSize[1];
+    }
+  }
+  delete node.properties[LEGACY_FAMILY_SIZE_PROPERTY];
+  return heights;
+}
+
+function nativeFamilyMinHeight(node) {
+  try {
+    const height = Number(node.computeSize?.()?.[1]);
+    return Number.isFinite(height) && height > 0 ? height : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function beginFamilySizeTransition(node, oldFamily) {
+  if (node?.flags?.collapsed || !Object.hasOwn(FAMILY_LATENT_SPACE, oldFamily)) return null;
+  const size = validFamilySize(node?.size);
+  if (!size) return null;
+  const beforeMinHeight = nativeFamilyMinHeight(node) ?? size[1];
+  familyHeightStore(node)[oldFamily] = size[1];
+  return { size, beforeMinHeight };
+}
+
+function applyFamilySize(node, family, transition) {
+  if (!transition || node?.flags?.collapsed || !Object.hasOwn(FAMILY_LATENT_SPACE, family) ||
+      typeof node?.setSize !== "function") return;
+  const savedHeight = validFamilyHeight(familyHeightStore(node)[family]);
+  const nativeSize = node.computeSize?.();
+  const nativeWidth = Number(nativeSize?.[0]);
+  const nativeHeight = Number(nativeSize?.[1]);
+  if (!Number.isFinite(nativeHeight) || nativeHeight <= 0) return;
+  const requestedWidth = Number(node.size?.[0]);
+  const requestedHeight = savedHeight ??
+    transition.size[1] + nativeHeight - transition.beforeMinHeight;
+  const width = Math.max(MIN_NODE_WIDTH, Number.isFinite(nativeWidth) ? nativeWidth : 0,
+    Number.isFinite(requestedWidth) ? requestedWidth : transition.size[0]);
+  const height = Math.max(nativeHeight, requestedHeight);
+  if (!Number.isFinite(height) || height > 16384 || width > 16384) return;
+  if (node.size?.[0] !== width || node.size?.[1] !== height) {
+    node.setSize([width, height]);
+    triggerRedraw(node);
+  }
+}
+
 function moveRow(node, row, direction) {
   const rows = getLoraRows(node);
   const current = rows.indexOf(row);
@@ -1834,14 +1933,13 @@ app.registerExtension({
     cancelNewNodeSettingsRestore(node);
     node.__ultraLoadedFromGraph = true;
     node.__ultraConfiguredFromWorkflow = true;
-    // The core constructor initially counts PiD detail controls before the
-    // extension hides them. On graph load, synchronize all visible rows before
-    // applying the SAME core content-fit used after a user PiD toggle.
-    // Do not invent margins or maintain a second height calculation.
+    // Core restore owns the saved node height. Reconcile widget visibility,
+    // then grow only if the saved bounds are too small for visible controls.
+    // A full fit would destroy intentionally retained per-family whitespace.
     syncPidVisibility(node);
     syncMiniMaxControls(node);
     localizeNode(node);
-    fitAfterWidgetStructureChange(node);
+    preserveLoadedNodeSize(node);
   },
 
   async nodeCreated(node) {

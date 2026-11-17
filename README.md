@@ -1,4 +1,4 @@
-# Ultra Image + PiD — v1.0.5
+# Ultra Image + PiD — v1.0.6
 ### All-in-One ComfyUI Image Generation & PixelDiT Upscaling
 ### 다양한 이미지 모델 생성 · 모델별 설정 기억 · 선택형 PiD 업스케일
 
@@ -18,6 +18,7 @@
 | --- | --- |
 | **7개 이미지 모델 계열 / Seven model families** | Krea 2, Z-Image, Anima, Qwen Image, Qwen Image 2.1, MOSS-Image, MiniMax H3 Image |
 | **모델별 설정 기억 / Per-family settings memory** | 모델·VAE·해상도·샘플링·LoRA·PiD 설정을 계열별로 보관 / Restore family-specific generation settings |
+| **노드 높이 기억 / Node height memory** | 모델 계열별 사용자가 조절한 높이는 복원하고, 너비는 현재 값 유지 / Restore each family's height while keeping the current width |
 | **한글·영문 자동 UI / Automatic KO–EN UI** | ComfyUI의 언어 설정을 따름 / Follows the ComfyUI locale |
 | **생성 + 업스케일 / Generation + upscaling** | 하나의 노드에서 원본과 선택적 PiD 결과를 출력 / Original and optional PiD outputs |
 | **동적 LoRA / Dynamic LoRA stack** | LoRA 행 추가, 활성화, 순서, 강도 조절 / Add, enable, reorder, and adjust LoRAs |

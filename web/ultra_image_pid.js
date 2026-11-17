@@ -44,7 +44,11 @@ const QUEUE_HOOK_FLAG = "__ultraStandaloneImagePiDQueueHook";
 const SETTINGS_STORE_VERSION = 1;
 const SETTINGS_STORAGE_KEY = "UltraStandaloneImagePiD.lastGeneratedSettings.v2";
 const NODE_SETTINGS_KEY_PROPERTY = "__ultraStandaloneImagePiDSettingsKey";
-const FAMILY_HEIGHT_PROPERTY = "ultraStandaloneImagePiDFamilyHeightsV1";
+// Per-family extra space: node height above the core's computeSize() minimum.
+// Remembering this (not the total height) keeps the node's spacing stable
+// when LoRA rows or PiD rows differ on return to a family.
+const FAMILY_SPACE_PROPERTY = "ultraStandaloneImagePiDFamilySpaceV1";
+const FAMILY_HEIGHT_PROPERTY = "ultraStandaloneImagePiDFamilyHeightsV1";   // legacy totals
 const LEGACY_FAMILY_SIZE_PROPERTY = "ultraStandaloneImagePiDFamilySizesV1";
 const MAX_STORED_NODE_KEYS = 64;
 const EXCLUDED_PERSIST_WIDGETS = new Set([
@@ -1155,6 +1159,7 @@ function attachModelFamilyRestoreHook(node) {
     Promise.resolve()
       .then(() => applyStoredSettingsForFamily(node, family, restoreToken, { geometryTransition }))
       .catch((error) => {
+        if (node.__ultraFamilySizePending === geometryTransition) node.__ultraFamilySizePending = null;
         console.warn(tr("[Ultra Image + PiD] Failed to restore per-family last generation settings", "[Ultra Image + PiD] 모델별 마지막 생성 설정 복원 실패"), error);
       });
     return result;
@@ -1402,6 +1407,15 @@ async function promptStrength(widget, node, event) {
   );
 }
 
+// Canvas mode: the core may hand a custom widget a stale per-widget width
+// (e.g. the width at creation) until the node is resized or the workflow is
+// re-entered, so the row is drawn narrower than the node. Use the node's own
+// width there. Vue Nodes draws legacy widgets on their own canvas: keep its width.
+function liveRowWidth(node, width) {
+  if (globalThis.LiteGraph?.vueNodesMode) return width;
+  const nodeWidth = Number(node?.size?.[0]);
+  return Number.isFinite(nodeWidth) && nodeWidth > 0 ? nodeWidth : width;
+}
 class UltraLoraRowWidget {
   constructor(name, value) {
     this.name = name;
@@ -1423,6 +1437,7 @@ class UltraLoraRowWidget {
   }
 
   draw(ctx, node, width, y, height) {
+    width = liveRowWidth(node, width);
     this.last_y = y;
     this._lastWidth = width;
     const left = 15;
@@ -1530,6 +1545,7 @@ class UltraLoraAddButtonWidget {
   }
 
   draw(ctx, node, width, y, height) {
+    width = liveRowWidth(node, width);
     this.last_y = y;
     const left = 15;
     const top = y + 2;
@@ -1683,23 +1699,58 @@ function nativeFamilyMinHeight(node) {
   }
 }
 
+function validFamilySpace(value) {
+  const space = Number(value);
+  return Number.isFinite(space) && space >= 0 && space <= 16384 ? space : null;
+}
+
+function familySpaceStore(node) {
+  node.properties ||= {};
+  const value = node.properties[FAMILY_SPACE_PROPERTY];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    node.properties[FAMILY_SPACE_PROPERTY] = {};
+  }
+  return node.properties[FAMILY_SPACE_PROPERTY];
+}
+
+function legacyFamilyHeight(node, family) {
+  const heights = familyHeightStore(node);
+  const height = validFamilyHeight(heights[family]);
+  if (!Object.keys(heights).length) delete node.properties[FAMILY_HEIGHT_PROPERTY];
+  return height;
+}
+
 function beginFamilySizeTransition(node, oldFamily) {
-  if (node?.flags?.collapsed || !Object.hasOwn(FAMILY_LATENT_SPACE, oldFamily)) return null;
-  const size = validFamilySize(node?.size);
+  if (!node) return null;
+  // The previous family switch is still restoring settings (LoRA list fetch is
+  // asynchronous): node.size still belongs to the family before it, so do not
+  // remember it under oldFamily. Reuse that transition for the new target.
+  if (node.__ultraFamilySizePending) return node.__ultraFamilySizePending;
+  if (node.flags?.collapsed || !Object.hasOwn(FAMILY_LATENT_SPACE, oldFamily)) return null;
+  const size = validFamilySize(node.size);
   if (!size) return null;
   const beforeMinHeight = nativeFamilyMinHeight(node) ?? size[1];
-  familyHeightStore(node)[oldFamily] = size[1];
-  return { size, beforeMinHeight };
+  familySpaceStore(node)[oldFamily] = Math.max(0, Math.round(size[1] - beforeMinHeight));
+  const heights = familyHeightStore(node);
+  delete heights[oldFamily];
+  if (!Object.keys(heights).length) delete node.properties[FAMILY_HEIGHT_PROPERTY];
+  const transition = { size, beforeMinHeight };
+  node.__ultraFamilySizePending = transition;
+  return transition;
 }
 
 function applyFamilySize(node, family, transition) {
+  if (node && node.__ultraFamilySizePending === transition) node.__ultraFamilySizePending = null;
   if (!transition || node?.flags?.collapsed || !Object.hasOwn(FAMILY_LATENT_SPACE, family) ||
       typeof node?.setSize !== "function") return;
-  const savedHeight = validFamilyHeight(familyHeightStore(node)[family]);
   const nativeSize = node.computeSize?.();
   const nativeWidth = Number(nativeSize?.[0]);
   const nativeHeight = Number(nativeSize?.[1]);
   if (!Number.isFinite(nativeHeight) || nativeHeight <= 0) return;
+  const savedSpace = validFamilySpace(familySpaceStore(node)[family]);
+  const savedHeight = savedSpace !== null
+    ? nativeHeight + savedSpace
+    : legacyFamilyHeight(node, family);
   const requestedWidth = Number(node.size?.[0]);
   const requestedHeight = savedHeight ??
     transition.size[1] + nativeHeight - transition.beforeMinHeight;
@@ -1898,6 +1949,7 @@ app.registerExtension({
     const originalConfigure = nodeType.prototype.configure;
     nodeType.prototype.configure = function configureUltraImagePiD(info) {
       cancelNewNodeSettingsRestore(this);
+      this.__ultraFamilySizePending = null;   // a load replaces any unfinished family switch
       this.__ultraConfiguredFromWorkflow = true;
       this.__ultraConfiguredInProgress = true;
       const savedValues = Array.isArray(info?.widgets_values) ? info.widgets_values : [];

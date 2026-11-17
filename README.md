@@ -1,4 +1,4 @@
-# Ultra Image + PiD — v1.0.6
+# Ultra Image + PiD — v1.0.7
 ### All-in-One ComfyUI Image Generation & PixelDiT Upscaling
 ### 다양한 이미지 모델 생성 · 모델별 설정 기억 · 선택형 PiD 업스케일
 
